@@ -420,19 +420,29 @@ async function renderAlumno(id) {
     h += `<div class="panel" style="padding:6px 14px">` + Object.keys(porFecha).sort().reverse().slice(0, 8).map(f => `<div class="sess"><b>${dateEs(f)}</b>${Object.entries(porFecha[f]).map(([ex, ss]) => `<div><span>${esc(exName(ex))}: ${ss.sort((x, y) => x.num_serie - y.num_serie).map(s => Number(s.peso_kg) > 0 || s.repeticiones ? `${fmt(Number(s.peso_kg || 0))}×${s.repeticiones}` : `${s.tiempo_seg}s`).join(' · ')}</span></div>`).join('')}</div>`).join('') + '</div>';
     h += `<h2 style="margin:18px 0 8px">Evolución</h2>` + progresoCards(ser);
   }
+  try {
+    const nts = await q(sb.from('nota_tecnica').select('tecnica_id,texto,actualizado').eq('alumno_id', id).order('actualizado', { ascending: false }));
+    if (nts.length) {
+      const ts = await q(sb.from('tecnica').select('id,titulo,codigo,nivel_id').in('id', nts.map(n => n.tecnica_id)));
+      const nv = await q(sb.from('nivel').select('id,nombre'));
+      h += `<h2 style="margin:18px 0 8px">Notas en técnicas</h2><div class="panel" style="padding:6px 14px">` + nts.map(n => { const t = ts.find(x => x.id === n.tecnica_id) || {}; const l = nv.find(x => x.id === t.nivel_id) || {}; return `<div class="sess"><b>${esc(l.nombre || '')} · ${esc(t.codigo || '')} ${esc(t.titulo || '')}</b><div><span>${esc(n.texto)}</span></div></div>`; }).join('') + '</div>';
+    }
+  } catch (e) { console.warn(e); }
   h += `<button class="btn alt sm" style="margin-top:14px" data-baja="${id}" data-act="${a.activo ? 1 : 0}">${a.activo ? 'Dar de baja a este alumno' : 'Reactivar a este alumno'}</button>`;
   view.innerHTML = h;
 }
 
 /* ───────── inicio y programas técnicos ───────── */
-const P = { cargado: false, progs: [], nivs: [], tecs: [], mio: {}, val: {}, grados: {} };
+const P = { cargado: false, progs: [], nivs: [], tecs: [], mio: {}, val: {}, grados: {}, notas: {} };
 async function cargarProgramas() {
   const uid = S.user.id;
-  const [progs, nivs, tecs, mio, val, gr] = await Promise.all([
+  const [progs, nivs, tecs, mio, val, gr, notas] = await Promise.all([
     q(sb.from('programa').select('*').order('orden')), q(sb.from('nivel').select('*').order('orden')),
     q(sb.from('tecnica').select('id,nivel_id,seccion,codigo,titulo,descripcion,orden').order('orden').limit(5000)),
     q(sb.from('progreso_tecnica').select('*').eq('alumno_id', uid)), q(sb.from('validacion_tecnica').select('*').eq('alumno_id', uid)),
-    q(sb.from('grado_alumno').select('*').eq('alumno_id', uid).order('fecha'))]);
+    q(sb.from('grado_alumno').select('*').eq('alumno_id', uid).order('fecha')),
+    q(sb.from('nota_tecnica').select('tecnica_id,texto').eq('alumno_id', uid)).catch(() => [])]);
+  P.notas = Object.fromEntries(notas.map(n => [n.tecnica_id, n.texto]));
   P.progs = progs.filter(p => p.slug !== 'fisico'); P.nivs = nivs; P.tecs = tecs;
   P.mio = Object.fromEntries(mio.map(m => [m.tecnica_id, m.estado])); P.val = Object.fromEntries(val.map(v => [v.tecnica_id, v]));
   P.grados = {}; gr.forEach(g => { const n = nivs.find(x => x.id === g.nivel_id); if (n) P.grados[n.programa_id] = n; });
@@ -477,7 +487,8 @@ function renderNivel(nid) {
     if (b) h += `<h3 class="sub">${esc(b)}${g.l[0].descripcion ? `<small>${esc(g.l[0].descripcion)}</small>` : ''}</h3>`;
     g.l.forEach(t => {
       const v = P.val[t.id], e = EST[P.mio[t.id]];
-      h += `<button class="tec${v ? ' val' : ''}" data-tec="${t.id}"><span class="cod">${esc(t.codigo || '·')}</span><span class="tx">${esc(t.titulo)}</span>${v ? '<span class="chip ok">Validada</span>' : e ? `<span class="chip ${e[1]}">${e[0]}</span>` : ''}</button>`;
+      const nt = P.notas[t.id];
+      h += `<div class="tecw"><button class="tec${v ? ' val' : ''}" data-tec="${t.id}"><span class="cod">${esc(t.codigo || '·')}</span><span class="tx">${esc(t.titulo)}</span>${v ? '<span class="chip ok">Validada</span>' : e ? `<span class="chip ${e[1]}">${e[0]}</span>` : ''}</button><button class="nbtn${nt ? ' on' : ''}" data-nota="${t.id}" aria-label="Nota de ${esc(t.titulo)}" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="${nt ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 3h14v14l-5 4H5z"/><path d="M14 21v-4h5"/></svg></button><div class="nbox" id="nb-${t.id}" hidden><textarea maxlength="200" rows="2" data-notatxt="${t.id}" placeholder="Tu nota (máx. 200 caracteres)">${esc(nt || '')}</textarea><small class="muted">Solo la ves tú y tu maestro.</small></div></div>`;
     });
   });
   if (sec !== null) h += '</section>';
@@ -520,6 +531,14 @@ document.addEventListener('submit', async ev => {
 });
 document.addEventListener('input', ev => {
   if (ev.target.id === 'busca') { clearTimeout(swapTimer); const v = ev.target.value; swapTimer = setTimeout(() => { buscarEj(window.__swapItem, v, S.ex[exOf(S.items[window.__swapItem])] || {}); }, 300); }
+});
+document.addEventListener('focusout', async ev => {
+  const ta = ev.target; if (!ta.dataset || !ta.dataset.notatxt) return;
+  const id = ta.dataset.notatxt, txt = ta.value.trim().slice(0, 200);
+  if ((P.notas[id] || '') === txt) return;
+  if (txt) P.notas[id] = txt; else delete P.notas[id];
+  const nb = document.querySelector(`[data-nota="${id}"]`); if (nb) { nb.classList.toggle('on', !!txt); nb.querySelector('svg').setAttribute('fill', txt ? 'currentColor' : 'none'); }
+  await enqueue(txt ? { k: 'ups', t: 'nota_tecnica', conf: 'alumno_id,tecnica_id', row: { alumno_id: S.user.id, tecnica_id: id, texto: txt, actualizado: new Date().toISOString() } } : { k: 'del', t: 'nota_tecnica', m: { alumno_id: S.user.id, tecnica_id: id } });
 });
 document.addEventListener('click', async ev => {
   const b = ev.target.closest('button'); if (!b) return;
@@ -578,6 +597,7 @@ document.addEventListener('click', async ev => {
     if (d.prog) return renderPrograma(d.prog);
     if (d.niv) return renderNivel(d.niv);
     if (d.tec) return ciclarTecnica(d.tec);
+    if (d.nota) { const bx = document.getElementById('nb-' + d.nota); bx.hidden = !bx.hidden; b.setAttribute('aria-expanded', !bx.hidden); if (!bx.hidden) bx.querySelector('textarea').focus(); return; }
     if (d.alumno) return renderAlumno(d.alumno);
     if ('alumnos' in d) return renderAlumnos();
     if (d.asig) {
