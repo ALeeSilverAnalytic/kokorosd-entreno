@@ -380,7 +380,7 @@ async function renderAlumnos() {
     q(sb.from('serie_registro').select('alumno_id,fecha').order('fecha', { ascending: false }).limit(3000))
   ]);
   const last = {}; ses.forEach(s => { if (!last[s.alumno_id]) last[s.alumno_id] = s.fecha; });
-  view.innerHTML = `<h1>Alumnos</h1>` + (al.length ? al.map(a => `<button class="stu" data-alumno="${a.id}"><span class="tx"><b>${esc(a.alias)}</b>${!a.activo ? '<span class="badge">Baja</span>' : ''}${a.debe_cambiar_clave ? '<span class="badge">Clave temporal</span>' : ''}<span class="s">${last[a.id] ? 'Último registro: ' + dateEs(last[a.id]) : 'Sin registros'}</span></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`).join('') : '<div class="panel"><p class="muted" style="margin:0">Aún no hay alumnos. Créalos en Supabase: Authentication → Users → Add user, con correo <b>alias@kokorosd.example</b>, una contraseña temporal y "Auto Confirm User".</p></div>');
+  view.innerHTML = `<h1>Alumnos</h1>` + `<div class="panel"><h2 style="margin-bottom:6px">Contenido</h2><p class="muted" style="margin:0 0 10px">Carga o actualiza programas y ejercicios publicados en el repositorio. Se puede repetir sin duplicar nada.</p><button class="btn sm" data-sync>Sincronizar contenido</button><div id="syncout" class="muted" style="margin-top:10px"></div></div>` + (al.length ? al.map(a => `<button class="stu" data-alumno="${a.id}"><span class="tx"><b>${esc(a.alias)}</b>${!a.activo ? '<span class="badge">Baja</span>' : ''}${a.debe_cambiar_clave ? '<span class="badge">Clave temporal</span>' : ''}<span class="s">${last[a.id] ? 'Último registro: ' + dateEs(last[a.id]) : 'Sin registros'}</span></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`).join('') : '<div class="panel"><p class="muted" style="margin:0">Aún no hay alumnos. Créalos en Supabase: Authentication → Users → Add user, con correo <b>alias@kokorosd.example</b>, una contraseña temporal y "Auto Confirm User".</p></div>');
 }
 async function renderAlumno(id) {
   view.innerHTML = '<div class="loading">Cargando…</div>';
@@ -419,6 +419,27 @@ async function renderAlumno(id) {
   }
   h += `<button class="btn alt sm" style="margin-top:14px" data-baja="${id}" data-act="${a.activo ? 1 : 0}">${a.activo ? 'Dar de baja a este alumno' : 'Reactivar a este alumno'}</button>`;
   view.innerHTML = h;
+}
+
+/* ───────── sincronizar contenido (solo maestro) ───────── */
+async function sincronizar(log) {
+  const get = async f => { const r = await fetch('content/' + f + '?v=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw new Error('No se pudo leer ' + f); return r.json(); };
+  const idx = await get('index.json'); let progs = {};
+  for (const f of idx.files) {
+    const c = await get(f);
+    for (const op of c.ops) {
+      let rows = op.rows;
+      if (op.t === 'nivel') {
+        if (!Object.keys(progs).length) (await q(sb.from('programa').select('id,slug'))).forEach(p => { progs[p.slug] = p.id; });
+        rows = rows.map(r => { const { programa_slug, ...o } = r; if (!progs[programa_slug]) throw new Error('Falta el programa ' + programa_slug); return { ...o, programa_id: progs[programa_slug] }; });
+      }
+      for (let i = 0; i < rows.length; i += 200) {
+        const r = await sb.from(op.t).upsert(rows.slice(i, i + 200), { onConflict: op.k });
+        if (r.error) throw new Error(op.t + ': ' + r.error.message);
+        log(`${f} · ${op.t}: ${Math.min(i + 200, rows.length)} de ${rows.length}`);
+      }
+    }
+  }
 }
 
 /* ───────── eventos ───────── */
@@ -479,6 +500,12 @@ document.addEventListener('click', async ev => {
       delete S.sust[d.unswap]; return renderExercise(d.unswap);
     }
     // maestro
+    if ('sync' in d) {
+      const out = $('#syncout'); b.disabled = true; b.textContent = 'Sincronizando…';
+      try { await sincronizar(m => { out.textContent = m; }); out.textContent = 'Listo. ' + out.textContent; toast('Contenido sincronizado'); }
+      catch (e) { out.textContent = 'No se pudo completar: ' + e.message; }
+      b.disabled = false; b.textContent = 'Sincronizar contenido'; return;
+    }
     if (d.alumno) return renderAlumno(d.alumno);
     if ('alumnos' in d) return renderAlumnos();
     if (d.asig) {
