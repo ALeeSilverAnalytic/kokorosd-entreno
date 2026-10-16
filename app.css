@@ -125,3 +125,19 @@ a{color:var(--accent)}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 0}
 .chips button{padding:8px 12px;border-radius:99px;background:var(--surface);border:1px solid var(--line);font-size:14px}
 .chips button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+
+/* inicio y programas técnicos */
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pcard{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0;width:100%}
+.pcard b{font-family:var(--f-display);font-size:22px;font-weight:600;line-height:1.1}
+.pcard small{font-size:13px;color:var(--muted)}
+.pcard .prog{width:100%;margin:8px 0 2px}
+.pcard.wide{flex-direction:row;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.pcard.wide .tx{flex:1;min-width:0;display:block}.pcard.wide .tx b{display:block;font-size:20px}.pcard.wide .tx small{display:block}
+.pcard.soon{opacity:.6}
+.sub{font-size:18px;margin:14px 0 6px;color:var(--fg)}.sub small{display:block;font-family:var(--f-body);font-size:13px;font-weight:400;color:var(--muted)}
+.tec{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:6px}
+.tec .cod{flex:none;min-width:28px;font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px}
+.tec .tx{flex:1;min-width:0;font-size:15px}
+.chip{flex:none;font-size:12px;font-weight:600;padding:4px 9px;border-radius:99px;background:var(--surface2);color:var(--muted)}
+.chip.pr{background:var(--surface2);color:var(--accent)}.chip.dom{background:var(--accent-solid);color:var(--accent-fg)}.chip.ok{background:var(--ok);color:#0b2417}

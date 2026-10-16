@@ -33,6 +33,7 @@ const IC = {
   play: '<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'
 };
 const NAV = {
+  inicio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg>',
   hoy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
   progreso: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M6 16l4-5 4 3 5-7"/></svg>',
   alumnos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5M16 4.8a3.3 3.3 0 010 6.4M18 14.8c2 .6 3.2 2.2 3.6 5"/></svg>',
@@ -59,7 +60,9 @@ async function send(op) {
   try {
     const r = op.k === 'ins'
       ? await sb.from(op.t).upsert(op.row, { onConflict: op.conf, ignoreDuplicates: true })
-      : await sb.from(op.t).delete().match(op.m);
+      : op.k === 'ups'
+        ? await sb.from(op.t).upsert(op.row, { onConflict: op.conf })
+        : await sb.from(op.t).delete().match(op.m);
     if (r.error) { if (isNet(r.error)) return false; console.warn('Envío descartado', r.error); }
     return true;
   } catch (e) { return false; }
@@ -157,7 +160,7 @@ const itemSub = it => it.modo === 'check' ? (it.repeticiones || '') : `${it.seri
 
 /* ───────── acceso ───────── */
 function setNav() {
-  const tabs = [['hoy', 'Entreno'], ['progreso', 'Mi progreso']];
+  const tabs = [['inicio', 'Inicio'], ['hoy', 'Entreno'], ['progreso', 'Mi progreso']];
   if (S.perfil && S.perfil.rol === 'maestro') tabs.push(['alumnos', 'Alumnos']);
   tabs.push(['cuenta', 'Cuenta']);
   nav.innerHTML = tabs.map(([k, l]) => `<button data-tab="${k}" aria-current="${k === tab ? 'page' : 'false'}">${NAV[k]}${l}</button>`).join('');
@@ -193,7 +196,7 @@ async function afterLogin(user) {
   S.perfil = perfil; paintWho();
   if (perfil.debe_cambiar_clave) return showForceChange();
   try { await loadAll(); } catch (e) { return showError(e); }
-  tab = 'hoy'; setNav(); go('hoy'); flush();
+  tab = 'inicio'; setNav(); go('inicio'); flush();
 }
 function showForceChange(msg) {
   nav.hidden = true;
@@ -224,7 +227,7 @@ async function logout() { await sb.auth.signOut(); lsDel('kk_cache'); lsDel('kk_
 function go(t) {
   tab = t; clearInterval(animT);
   document.querySelectorAll('#nav button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === t ? 'page' : 'false'));
-  const f = { hoy: renderToday, progreso: renderProgress, alumnos: renderAlumnos, cuenta: renderCuenta }[t];
+  const f = { inicio: renderInicio, hoy: renderToday, progreso: renderProgress, alumnos: renderAlumnos, cuenta: renderCuenta }[t];
   Promise.resolve(f()).catch(showError);
   view.scrollTop = 0;
 }
@@ -421,6 +424,72 @@ async function renderAlumno(id) {
   view.innerHTML = h;
 }
 
+/* ───────── inicio y programas técnicos ───────── */
+const P = { cargado: false, progs: [], nivs: [], tecs: [], mio: {}, val: {}, grados: {} };
+async function cargarProgramas() {
+  const uid = S.user.id;
+  const [progs, nivs, tecs, mio, val, gr] = await Promise.all([
+    q(sb.from('programa').select('*').order('orden')), q(sb.from('nivel').select('*').order('orden')),
+    q(sb.from('tecnica').select('id,nivel_id,seccion,codigo,titulo,descripcion,orden').order('orden').limit(5000)),
+    q(sb.from('progreso_tecnica').select('*').eq('alumno_id', uid)), q(sb.from('validacion_tecnica').select('*').eq('alumno_id', uid)),
+    q(sb.from('grado_alumno').select('*').eq('alumno_id', uid).order('fecha'))]);
+  P.progs = progs.filter(p => p.slug !== 'fisico'); P.nivs = nivs; P.tecs = tecs;
+  P.mio = Object.fromEntries(mio.map(m => [m.tecnica_id, m.estado])); P.val = Object.fromEntries(val.map(v => [v.tecnica_id, v]));
+  P.grados = {}; gr.forEach(g => { const n = nivs.find(x => x.id === g.nivel_id); if (n) P.grados[n.programa_id] = n; });
+  P.cargado = true;
+}
+const tecsDe = nid => P.tecs.filter(t => t.nivel_id === nid);
+const nDom = list => list.filter(t => P.val[t.id] || P.mio[t.id] === 'dominada').length;
+async function renderInicio() {
+  view.innerHTML = '<h1>Hola, ' + esc(S.perfil.alias) + '</h1><div class="loading">Cargando…</div>';
+  try { await cargarProgramas(); } catch (e) { view.innerHTML = '<h1>Hola, ' + esc(S.perfil.alias) + '</h1><div class="panel"><p class="muted" style="margin:0">No se pudo cargar. Comprueba tu conexión.</p></div>'; return; }
+  const rut = S.rutinas.find(r => r.id === S.sel.r) || S.rutinas[0], bl = rut ? bloquesDe(rut.id) : [], dia = bl.find(b => b.id === S.sel.b) || bl[0];
+  let h = `<h1>Hola, ${esc(S.perfil.alias)}</h1>`;
+  h += `<h2 style="margin:18px 0 8px">Entrenamiento físico</h2>` + (rut && dia
+    ? `<button class="pcard wide" data-tab="hoy"><span class="tx"><b>${esc(rut.nombre)}</b><small>${esc(diaLabel(dia))} · ${esc(dia.nombre)}</small></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`
+    : `<div class="panel"><p class="muted" style="margin:0">Aún no tienes rutina asignada.</p></div>`);
+  h += `<h2 style="margin:22px 0 8px">Programas técnicos</h2><div class="pgrid">` + P.progs.map(p => {
+    const ns = P.nivs.filter(n => n.programa_id === p.id), all = ns.flatMap(n => tecsDe(n.id)), g = P.grados[p.id];
+    return `<button class="pcard${ns.length ? '' : ' soon'}" ${ns.length ? `data-prog="${p.id}"` : 'disabled'}><b>${esc(p.nombre)}</b><small>${ns.length ? esc(g ? g.nombre : 'Sin grado asignado') : 'Próximamente'}</small>${ns.length ? `<span class="prog"><i style="width:${all.length ? nDom(all) / all.length * 100 : 0}%"></i></span><small>${nDom(all)} de ${all.length} técnicas</small>` : ''}</button>`;
+  }).join('') + `</div>`;
+  view.innerHTML = h;
+}
+function renderPrograma(pid) {
+  const p = P.progs.find(x => x.id === pid); if (!p) return go('inicio');
+  const ns = P.nivs.filter(n => n.programa_id === pid), g = P.grados[pid];
+  let h = `<button class="back" data-tab="inicio">${IC.chev}Inicio</button><h1>${esc(p.nombre)}</h1><p class="muted" style="margin:4px 0 14px">${g ? 'Tu grado: ' + esc(g.nombre) : 'Aún sin grado asignado'}</p>`;
+  h += ns.map(n => {
+    const l = tecsDe(n.id), t = (n.detalle || {}).tiempo_minimo_antes_examen || {};
+    return `<button class="pcard wide" data-niv="${n.id}"><span class="tx"><b>${esc(n.nombre)}${g && g.id === n.id ? '<span class="badge">Tu grado</span>' : ''}</b><small>${nDom(l)} de ${l.length} técnicas${t.meses_adultos ? ` · mínimo ${t.meses_adultos} meses (adultos)` : ''}</small><span class="prog" style="margin:8px 0 0"><i style="width:${l.length ? nDom(l) / l.length * 100 : 0}%"></i></span></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`;
+  }).join('');
+  view.innerHTML = h; view.scrollTop = 0;
+}
+const EST = { practicando: ['Practicando', 'pr'], dominada: ['Dominada', 'dom'] };
+function renderNivel(nid) {
+  const n = P.nivs.find(x => x.id === nid); if (!n) return go('inicio');
+  const l = tecsDe(nid);
+  let h = `<button class="back" data-prog="${n.programa_id}">${IC.chev}${esc((P.progs.find(p => p.id === n.programa_id) || {}).nombre || 'Programa')}</button><h1>${esc(n.nombre)}</h1><p class="muted" style="margin:4px 0 8px">${nDom(l)} de ${l.length} técnicas. Toca una técnica para cambiar su estado: sin marcar, practicando, dominada.</p>`;
+  const grupos = []; l.forEach(t => { let g = grupos[grupos.length - 1]; if (!g || g.k !== t.seccion) { g = { k: t.seccion, l: [] }; grupos.push(g); } g.l.push(t); });
+  let sec = null;
+  grupos.forEach(g => {
+    const [a, b] = g.k.split(' › ');
+    if (a !== sec) { if (sec !== null) h += '</section>'; sec = a; h += `<section class="block"><h2>${esc(a)}</h2>`; }
+    if (b) h += `<h3 class="sub">${esc(b)}${g.l[0].descripcion ? `<small>${esc(g.l[0].descripcion)}</small>` : ''}</h3>`;
+    g.l.forEach(t => {
+      const v = P.val[t.id], e = EST[P.mio[t.id]];
+      h += `<button class="tec${v ? ' val' : ''}" data-tec="${t.id}"><span class="cod">${esc(t.codigo || '·')}</span><span class="tx">${esc(t.titulo)}</span>${v ? '<span class="chip ok">Validada</span>' : e ? `<span class="chip ${e[1]}">${e[0]}</span>` : ''}</button>`;
+    });
+  });
+  if (sec !== null) h += '</section>';
+  view.innerHTML = h;
+}
+async function ciclarTecnica(id) {
+  const orden = [undefined, 'practicando', 'dominada'], cur = P.mio[id], nx = orden[(orden.indexOf(cur) + 1) % 3];
+  if (nx) P.mio[id] = nx; else delete P.mio[id];
+  const y = view.scrollTop, t = P.tecs.find(x => x.id === id); renderNivel(t.nivel_id); view.scrollTop = y;
+  await enqueue(nx ? { k: 'ups', t: 'progreso_tecnica', conf: 'alumno_id,tecnica_id', row: { alumno_id: S.user.id, tecnica_id: id, estado: nx, actualizado: new Date().toISOString() } } : { k: 'del', t: 'progreso_tecnica', m: { alumno_id: S.user.id, tecnica_id: id } });
+}
+
 /* ───────── sincronizar contenido (solo maestro) ───────── */
 async function sincronizar(log) {
   const get = async f => { const r = await fetch('content/' + f + '?v=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw new Error('No se pudo leer ' + f); return r.json(); };
@@ -506,6 +575,9 @@ document.addEventListener('click', async ev => {
       catch (e) { out.textContent = 'No se pudo completar: ' + e.message; }
       b.disabled = false; b.textContent = 'Sincronizar contenido'; return;
     }
+    if (d.prog) return renderPrograma(d.prog);
+    if (d.niv) return renderNivel(d.niv);
+    if (d.tec) return ciclarTecnica(d.tec);
     if (d.alumno) return renderAlumno(d.alumno);
     if ('alumnos' in d) return renderAlumnos();
     if (d.asig) {
