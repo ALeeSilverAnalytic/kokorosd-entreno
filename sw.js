@@ -1,5 +1,5 @@
 // Service worker: la app funciona sin conexión (carcasa y fotos). Los datos de Supabase NUNCA se guardan aquí.
-const C = 'kokorosd-v4';
+const C = 'kokorosd-v5';
 const CORE = ['./', 'index.html', 'app.css', 'app.js', 'vendor/supabase.js', 'manifest.webmanifest',
               'icon-192.png', 'img/logo-white.png', 'img/logo-red.png'];
 const IMG_HOSTS = ['cdn.jsdelivr.net', 'raw.githubusercontent.com'];
@@ -25,7 +25,7 @@ self.addEventListener('fetch', e => {
     })));
     return;
   }
-  e.respondWith(fetch(r).then(res => {             // propios: red primero, caché si no hay red
+  e.respondWith(fetch(r, { cache: 'no-cache' }).then(res => {  // propios: red primero, caché si no hay red
     if (res.ok) { const cp = res.clone(); caches.open(C).then(c => c.put(r, cp)); }
     return res;
   }).catch(() => caches.match(r).then(m => m || caches.match('index.html'))));

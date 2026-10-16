@@ -596,7 +596,7 @@ document.addEventListener('click', async ev => {
 });
 
 /* ───────── arranque ───────── */
-if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {}));
 (async function boot() {
   try {
     const { data } = await sb.auth.getSession();
