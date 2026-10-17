@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v12';
+const VERSION = 'v13';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
@@ -560,7 +560,7 @@ function renderNivel(nid) {
   let sec = null;
   grupos.forEach(g => {
     const [a, b] = g.k.split(' › ');
-    if (a !== sec) { if (sec !== null) h += '</section>'; sec = a; h += `<section class="block"><h2>${esc(a)}</h2>`; }
+    if (a !== sec) { if (sec !== null) h += '</section>'; sec = a; const vu = (dt.videos || {})[a]; h += `<section class="block"><h2>${esc(a)}</h2>${vu ? `<a class="vl vsec" href="${vu}" target="_blank" rel="noopener noreferrer">${IC.play2}Ver vídeo de ${esc(a.toLowerCase())}</a>` : ''}`; }
     if (b) h += `<h3 class="sub">${esc(b)}${g.l[0].descripcion ? `<small>${esc(g.l[0].descripcion)}</small>` : ''}</h3>`;
     g.l.forEach(t => {
       const v = P.val[t.id], e = EST[P.mio[t.id]];
