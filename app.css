@@ -180,3 +180,8 @@ textarea.ta{width:100%;font:inherit;color:var(--fg);background:var(--surface2);b
 .reged input[type=date]{font:inherit;color:var(--fg);background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:8px}
 .reged .acts{display:flex;gap:8px;flex-wrap:wrap}
 a.vl.vsec{display:inline-flex;margin:0 0 10px}
+details.aviso>summary{cursor:pointer;list-style:none;display:flex;flex-direction:column;gap:2px;padding-right:26px;position:relative}
+details.aviso>summary::-webkit-details-marker{display:none}
+details.aviso>summary::after{content:"";position:absolute;right:4px;top:50%;width:8px;height:8px;margin-top:-6px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .15s}
+details.aviso[open]>summary::after{transform:rotate(-135deg);margin-top:-2px}
+details.aviso>summary:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:6px}
