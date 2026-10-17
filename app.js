@@ -5,7 +5,10 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v8';
+const VERSION = 'v9';
+const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
+const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
+const TRIM = ['1.º', '2.º', '3.º', '4.º'];
 const IMG = ['https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises/',
              'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/'];
 
@@ -381,22 +384,51 @@ function renderCuenta() {
 }
 
 /* ───────── vista de maestro ───────── */
+const avisosPanel = avs => avs === null ? '' : `<div class="panel"><h2 style="margin-bottom:8px">Avisos</h2>
+  <div class="field"><label for="av-t">Título (máx. 80)</label><input id="av-t" maxlength="80"></div>
+  <div class="field"><label for="av-x">Texto (máx. 500)</label><textarea id="av-x" maxlength="500" rows="3" class="ta"></textarea></div>
+  <button class="btn sm" data-avnuevo>Publicar aviso</button>
+  ${avs.map(a => `<div class="kv" style="margin-top:8px"><span style="color:var(--fg)">${esc(a.titulo)}</span><button class="btn alt sm" data-avdel="${a.id}">Quitar</button></div>`).join('')}</div>`;
 async function renderAlumnos() {
   view.innerHTML = '<h1>Alumnos</h1><div class="loading">Cargando…</div>';
-  const [al, ses] = await Promise.all([
+  const [al, ses, avs] = await Promise.all([
     q(sb.from('perfil').select('*').eq('rol', 'alumno').order('alias')),
-    q(sb.from('serie_registro').select('alumno_id,fecha').order('fecha', { ascending: false }).limit(3000))
+    q(sb.from('serie_registro').select('alumno_id,fecha').order('fecha', { ascending: false }).limit(3000)),
+    q(sb.from('aviso').select('*').eq('activo', true).order('creado', { ascending: false }).limit(10)).catch(() => null)
   ]);
   const last = {}; ses.forEach(s => { if (!last[s.alumno_id]) last[s.alumno_id] = s.fecha; });
-  view.innerHTML = `<h1>Alumnos</h1>` + `<div class="panel"><h2 style="margin-bottom:6px">Contenido</h2><p class="muted" style="margin:0 0 10px">Carga o actualiza programas y ejercicios publicados en el repositorio. Se puede repetir sin duplicar nada.</p><button class="btn sm" data-sync>Sincronizar contenido</button><div id="syncout" class="muted" style="margin-top:10px"></div></div>` + (al.length ? al.map(a => `<button class="stu" data-alumno="${a.id}"><span class="tx"><b>${esc(a.alias)}</b>${!a.activo ? '<span class="badge">Baja</span>' : ''}${a.debe_cambiar_clave ? '<span class="badge">Clave temporal</span>' : ''}<span class="s">${last[a.id] ? 'Último registro: ' + dateEs(last[a.id]) : 'Sin registros'}</span></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`).join('') : '<div class="panel"><p class="muted" style="margin:0">Aún no hay alumnos. Créalos en Supabase: Authentication → Users → Add user, con correo <b>alias@kokorosd.example</b>, una contraseña temporal y "Auto Confirm User".</p></div>');
+  view.innerHTML = `<h1>Alumnos</h1>` + `<div class="panel"><h2 style="margin-bottom:6px">Contenido</h2><p class="muted" style="margin:0 0 10px">Carga o actualiza programas y ejercicios publicados en el repositorio. Se puede repetir sin duplicar nada.</p><button class="btn sm" data-sync>Sincronizar contenido</button><div id="syncout" class="muted" style="margin-top:10px"></div></div>` + avisosPanel(avs) + (al.length ? al.map(a => `<button class="stu" data-alumno="${a.id}"><span class="tx"><b>${esc(a.alias)}</b>${!a.activo ? '<span class="badge">Baja</span>' : ''}${a.debe_cambiar_clave ? '<span class="badge">Clave temporal</span>' : ''}<span class="s">${last[a.id] ? 'Último registro: ' + dateEs(last[a.id]) : 'Sin registros'}</span></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`).join('') : '<div class="panel"><p class="muted" style="margin:0">Aún no hay alumnos. Créalos en Supabase: Authentication → Users → Add user, con correo <b>alias@kokorosd.example</b>, una contraseña temporal y "Auto Confirm User".</p></div>');
+}
+function escuelaMaestro(id, regla, cuotas, grs, progs, nivs) {
+  const yr = new Date().getFullYear();
+  let h = `<h2 style="margin:18px 0 8px">Grados</h2><div class="panel" style="margin:0">`;
+  progs.filter(p => p.slug !== 'fisico').forEach(p => {
+    const ns = nivs.filter(n => n.programa_id === p.id), cur = (grs.find(g => ns.some(n => n.id === g.nivel_id)) || {}).nivel_id || '';
+    h += `<div class="kv"><span>${esc(p.nombre)}</span>${ns.length ? `<select class="sel" data-grado="${p.id}" data-al="${id}" aria-label="Grado en ${esc(p.nombre)}"><option value="">Sin asignar</option>${ns.map(n => `<option value="${n.id}"${n.id === cur ? ' selected' : ''}>${esc(n.nombre)}</option>`).join('')}</select>` : '<b>—</b>'}</div>`;
+  });
+  h += `</div>`;
+  if (regla !== null) {
+    const rm = Object.fromEntries(regla.map(r => [r.numero, r]));
+    h += `<h2 style="margin:18px 0 8px">Entregas de la regla</h2><div class="panel" style="margin:0">` + Array.from({ length: 10 }, (_, i) => { const r = rm[i + 1] || {}; return `<div class="reg"><b>${i + 1}.ª</b><label>Recibida<input type="date" data-reg="${i + 1}" data-f="e" data-al="${id}" value="${r.fecha_entrega || ''}"></label><label>Terminada<input type="date" data-reg="${i + 1}" data-f="t" data-al="${id}" value="${r.fecha_terminada || ''}"></label></div>`; }).join('') + `</div>`;
+  }
+  if (cuotas !== null) {
+    h += `<h2 style="margin:18px 0 8px">Cuotas pendientes</h2><div class="panel" style="margin:0"><div class="chips" style="margin:0 0 10px">${cuotas.length ? cuotas.map(c => `<button data-cdel="${c.anio}-${c.trimestre}" data-al="${id}" aria-label="Quitar ${c.anio} trimestre ${c.trimestre}">${c.anio} · ${TRIM[c.trimestre - 1]} trim. ✕</button>`).join('') : '<span class="muted">Al día</span>'}</div>
+    <div class="reg"><select class="sel" id="cu-a" aria-label="Año">${[yr, yr - 1, yr - 2].map(a => `<option>${a}</option>`).join('')}</select><select class="sel" id="cu-t" aria-label="Trimestre">${[1, 2, 3, 4].map(t => `<option value="${t}">${TRIM[t - 1]} trimestre</option>`).join('')}</select><button class="btn sm" data-cadd="${id}">Añadir</button></div></div>`;
+  }
+  return h;
 }
 async function renderAlumno(id) {
   view.innerHTML = '<div class="loading">Cargando…</div>';
-  const [perfil, asg, rec, ser] = await Promise.all([
+  const [perfil, asg, rec, ser, regla, cuotas, grs, progs, nivs] = await Promise.all([
     q(sb.from('perfil').select('*').eq('id', id)),
     q(sb.from('asignacion').select('*').eq('alumno_id', id)),
     q(sb.from('recomendado').select('*').eq('alumno_id', id)),
-    q(sb.from('serie_registro').select('*').eq('alumno_id', id).order('fecha', { ascending: false }).limit(400))
+    q(sb.from('serie_registro').select('*').eq('alumno_id', id).order('fecha', { ascending: false }).limit(400)),
+    q(sb.from('entrega_regla').select('*').eq('alumno_id', id)).catch(() => null),
+    q(sb.from('cuota_pendiente').select('*').eq('alumno_id', id).order('anio').order('trimestre')).catch(() => null),
+    q(sb.from('grado_alumno').select('*').eq('alumno_id', id)).catch(() => []),
+    q(sb.from('programa').select('*').order('orden')).catch(() => []),
+    q(sb.from('nivel').select('id,programa_id,nombre,orden').order('orden')).catch(() => [])
   ]);
   const a = perfil[0]; if (!a) return go('alumnos');
   const faltan = [...new Set(ser.map(s => s.ejercicio_id))].filter(x => !S.ex[x]);
@@ -418,6 +450,7 @@ async function renderAlumno(id) {
       });
     }));
   }
+  h += escuelaMaestro(id, regla, cuotas, grs, progs, nivs);
   h += `<h2 style="margin:18px 0 8px">Actividad reciente</h2>`;
   if (!ser.length) h += '<p class="muted">Sin registros todavía.</p>';
   else {
@@ -438,7 +471,7 @@ async function renderAlumno(id) {
 }
 
 /* ───────── inicio y programas técnicos ───────── */
-const P = { cargado: false, progs: [], nivs: [], tecs: [], mio: {}, val: {}, grados: {}, notas: {} };
+const P = { cargado: false, progs: [], nivs: [], tecs: [], mio: {}, val: {}, grados: {}, notas: {}, avisos: [], infos: [], regla: {}, cuotas: [] };
 async function cargarProgramas() {
   const uid = S.user.id;
   const [progs, nivs, tecs, mio, val, gr, notas] = await Promise.all([
@@ -447,6 +480,12 @@ async function cargarProgramas() {
     q(sb.from('progreso_tecnica').select('*').eq('alumno_id', uid)), q(sb.from('validacion_tecnica').select('*').eq('alumno_id', uid)),
     q(sb.from('grado_alumno').select('*').eq('alumno_id', uid).order('fecha')),
     q(sb.from('nota_tecnica').select('tecnica_id,texto').eq('alumno_id', uid)).catch(() => [])]);
+  const [avisos, infos, regla, cuotas] = await Promise.all([
+    q(sb.from('aviso').select('*').eq('activo', true).order('creado', { ascending: false }).limit(5)).catch(() => []),
+    q(sb.from('info_pagina').select('slug,titulo,orden').order('orden')).catch(() => []),
+    q(sb.from('entrega_regla').select('*').eq('alumno_id', uid)).catch(() => []),
+    q(sb.from('cuota_pendiente').select('*').eq('alumno_id', uid).order('anio').order('trimestre')).catch(() => [])]);
+  P.avisos = avisos; P.infos = infos; P.cuotas = cuotas; P.regla = Object.fromEntries(regla.map(r => [r.numero, r]));
   P.notas = Object.fromEntries(notas.map(n => [n.tecnica_id, n.texto]));
   P.progs = progs.filter(p => p.slug !== 'fisico'); P.nivs = nivs; P.tecs = tecs;
   P.mio = Object.fromEntries(mio.map(m => [m.tecnica_id, m.estado])); P.val = Object.fromEntries(val.map(v => [v.tecnica_id, v]));
@@ -455,19 +494,40 @@ async function cargarProgramas() {
 }
 const tecsDe = nid => P.tecs.filter(t => t.nivel_id === nid);
 const nDom = list => list.filter(t => P.val[t.id] || P.mio[t.id] === 'dominada').length;
+const md = t => String(t || '').split('\n').filter(l => l.trim()).map(l => `<p${/^[a-d]\) /.test(l) ? ' class="ind"' : ''}>${esc(l).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</p>`).join('');
+const cuotaTxt = list => list.map(c => `${c.anio} · ${TRIM[c.trimestre - 1]} trim.`).join(', ');
+function escuelaCard() {
+  const gr = P.progs.map(p => { const ns = P.nivs.filter(n => n.programa_id === p.id); return `<div class="kv"><span>${esc(p.nombre)}</span><b>${ns.length ? esc((P.grados[p.id] || {}).nombre || 'Sin asignar') : '—'}</b></div>`; }).join('');
+  const rec = Object.values(P.regla).filter(r => r.fecha_entrega).length, ter = Object.values(P.regla).filter(r => r.fecha_terminada).length;
+  const pills = Array.from({ length: 10 }, (_, i) => { const r = P.regla[i + 1] || {}, c = r.fecha_terminada ? 'ter' : r.fecha_entrega ? 'rec' : ''; return `<span class="pill ${c}" title="${r.fecha_entrega ? 'Recibida ' + dateEs(r.fecha_entrega) : 'Pendiente'}${r.fecha_terminada ? ' · terminada ' + dateEs(r.fecha_terminada) : ''}">${i + 1}</span>`; }).join('');
+  return `<div class="panel" style="margin:0 0 10px"><div class="kv"><span>Cuotas pendientes</span><b class="${P.cuotas.length ? 'pend' : 'okc'}">${P.cuotas.length ? P.cuotas.length : 'Al día'}</b></div>${P.cuotas.length ? `<small class="muted">${esc(cuotaTxt(P.cuotas))}</small>` : ''}</div>
+  <div class="panel" style="margin:0 0 10px"><div class="kv"><span>Entregas de la regla</span><b>${rec} de 10 recibidas · ${ter} terminadas</b></div><div class="pills">${pills}</div></div>
+  <div class="panel" style="margin:0">${gr}</div>`;
+}
 async function renderInicio() {
   view.innerHTML = '<h1>Hola, ' + esc(S.perfil.alias) + '</h1><div class="loading">Cargando…</div>';
   try { await cargarProgramas(); } catch (e) { view.innerHTML = '<h1>Hola, ' + esc(S.perfil.alias) + '</h1><div class="panel"><p class="muted" style="margin:0">No se pudo cargar. Comprueba tu conexión.</p></div>'; return; }
   const rut = S.rutinas.find(r => r.id === S.sel.r) || S.rutinas[0], bl = rut ? bloquesDe(rut.id) : [], dia = bl.find(b => b.id === S.sel.b) || bl[0];
   let h = `<h1>Hola, ${esc(S.perfil.alias)}</h1>`;
-  h += `<h2 style="margin:18px 0 8px">Entrenamiento físico</h2>` + (rut && dia
+  if (P.avisos.length) h += `<h2 style="margin:18px 0 8px">Avisos</h2>` + P.avisos.map(a => `<div class="panel aviso" style="margin:0 0 8px"><b>${esc(a.titulo)}</b><small class="muted">${dateEs(a.creado.slice(0, 10))}</small>${a.texto ? `<p style="margin:6px 0 0">${esc(a.texto)}</p>` : ''}</div>`).join('');
+  h += `<h2 style="margin:22px 0 8px">Tú en la escuela</h2>` + escuelaCard();
+  h += `<h2 style="margin:22px 0 8px">Entrenamiento físico</h2>` + (rut && dia
     ? `<button class="pcard wide" data-tab="hoy"><span class="tx"><b>${esc(rut.nombre)}</b><small>${esc(diaLabel(dia))} · ${esc(dia.nombre)}</small></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`
-    : `<div class="panel"><p class="muted" style="margin:0">Aún no tienes rutina asignada.</p></div>`);
+    : `<div class="panel" style="margin:0"><p class="muted" style="margin:0">Aún no tienes rutina asignada.</p></div>`);
   h += `<h2 style="margin:22px 0 8px">Programas técnicos</h2><div class="pgrid">` + P.progs.map(p => {
     const ns = P.nivs.filter(n => n.programa_id === p.id), all = ns.flatMap(n => tecsDe(n.id)), g = P.grados[p.id];
     return `<button class="pcard${ns.length ? '' : ' soon'}" ${ns.length ? `data-prog="${p.id}"` : 'disabled'}><b>${esc(p.nombre)}</b><small>${ns.length ? esc(g ? g.nombre : 'Sin grado asignado') : 'Próximamente'}</small>${ns.length ? `<span class="prog"><i style="width:${all.length ? nDom(all) / all.length * 100 : 0}%"></i></span><small>${nDom(all)} de ${all.length} técnicas</small>` : ''}</button>`;
   }).join('') + `</div>`;
+  h += `<h2 style="margin:22px 0 8px">Info general</h2>` + P.infos.map(i => `<button class="pcard wide" data-info="${esc(i.slug)}"><span class="tx"><b>${esc(i.titulo)}</b></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`).join('')
+    + `<a class="pcard wide dl" href="${PDF_SOCIO}" target="_blank" rel="noopener noreferrer"><span class="tx"><b>Impreso de socio (PDF)</b><small>Normas, protección de datos y alta. Descárgalo, rellénalo y fírmalo.</small></span></a>`;
   view.innerHTML = h;
+}
+async function renderInfo(slug) {
+  view.innerHTML = '<div class="loading">Cargando…</div>';
+  const r = await q(sb.from('info_pagina').select('*').eq('slug', slug));
+  const p = r[0]; if (!p) return go('inicio');
+  view.innerHTML = `<button class="back" data-tab="inicio">${IC.chev}Inicio</button><h1>${esc(p.titulo)}</h1><div class="prosa">${md(p.contenido)}</div>`;
+  view.scrollTop = 0;
 }
 function renderPrograma(pid) {
   const p = P.progs.find(x => x.id === pid); if (!p) return go('inicio');
@@ -539,6 +599,22 @@ document.addEventListener('submit', async ev => {
 document.addEventListener('input', ev => {
   if (ev.target.id === 'busca') { clearTimeout(swapTimer); const v = ev.target.value; swapTimer = setTimeout(() => { buscarEj(window.__swapItem, v, S.ex[exOf(S.items[window.__swapItem])] || {}); }, 300); }
 });
+document.addEventListener('change', async ev => {
+  const t = ev.target, d = t.dataset || {};
+  try {
+    if (d.grado) {
+      const ns = (await q(sb.from('nivel').select('id').eq('programa_id', d.grado))).map(n => n.id);
+      let r = await sb.from('grado_alumno').delete().eq('alumno_id', d.al).in('nivel_id', ns); if (r.error) throw r.error;
+      if (t.value) { r = await sb.from('grado_alumno').insert({ alumno_id: d.al, nivel_id: t.value, asignado_por: S.user.id }); if (r.error) throw r.error; }
+      toast('Grado guardado');
+    }
+    if (d.reg) {
+      const row = t.closest('.reg'), e = row.querySelector('[data-f="e"]').value || null, f = row.querySelector('[data-f="t"]').value || null;
+      const r = (e || f) ? await sb.from('entrega_regla').upsert({ alumno_id: d.al, numero: +d.reg, fecha_entrega: e, fecha_terminada: f }, { onConflict: 'alumno_id,numero' }) : await sb.from('entrega_regla').delete().match({ alumno_id: d.al, numero: +d.reg });
+      if (r.error) throw r.error; toast('Entrega guardada');
+    }
+  } catch (e) { console.warn(e); toast('No se pudo guardar.'); }
+});
 document.addEventListener('keydown', ev => { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('[data-tec]')) { ev.preventDefault(); ev.target.click(); } });
 document.addEventListener('focusout', async ev => {
   const ta = ev.target; if (!ta.dataset || !ta.dataset.notatxt) return;
@@ -597,6 +673,20 @@ document.addEventListener('click', async ev => {
       delete S.sust[d.unswap]; return renderExercise(d.unswap);
     }
     // maestro
+    if ('avnuevo' in d) {
+      const t = $('#av-t').value.trim(), x = $('#av-x').value.trim(); if (!t) return toast('Escribe un título.');
+      const r = await sb.from('aviso').insert({ titulo: t, texto: x || null }); if (r.error) return toast('No se pudo publicar.');
+      toast('Aviso publicado'); return renderAlumnos();
+    }
+    if (d.avdel) { const r = await sb.from('aviso').update({ activo: false }).eq('id', d.avdel); if (r.error) return toast('No se pudo quitar.'); return renderAlumnos(); }
+    if (d.cadd) {
+      const r = await sb.from('cuota_pendiente').upsert({ alumno_id: d.cadd, anio: +$('#cu-a').value, trimestre: +$('#cu-t').value }, { onConflict: 'alumno_id,anio,trimestre' });
+      if (r.error) return toast('No se pudo guardar.'); const y = view.scrollTop; await renderAlumno(d.cadd); view.scrollTop = y; return;
+    }
+    if (d.cdel) {
+      const [a, tr] = d.cdel.split('-'), r = await sb.from('cuota_pendiente').delete().match({ alumno_id: d.al, anio: +a, trimestre: +tr });
+      if (r.error) return toast('No se pudo guardar.'); const y = view.scrollTop; await renderAlumno(d.al); view.scrollTop = y; return;
+    }
     if ('update' in d) {
       b.disabled = true; b.textContent = 'Actualizando…';
       try { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map(r => r.unregister())); const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); } catch (e) { console.warn(e); }
@@ -608,6 +698,7 @@ document.addEventListener('click', async ev => {
       catch (e) { out.textContent = 'No se pudo completar: ' + e.message; }
       b.disabled = false; b.textContent = 'Sincronizar contenido'; return;
     }
+    if (d.info) return renderInfo(d.info);
     if (d.prog) return renderPrograma(d.prog);
     if (d.niv) return renderNivel(d.niv);
     if (d.tec) return ciclarTecnica(d.tec);
