@@ -5,7 +5,8 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v10';
+const VERSION = 'v11';
+const FORM_IMPRESO = ''; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
 const TRIM = ['1.º', '2.º', '3.º', '4.º'];
@@ -399,7 +400,7 @@ async function renderAlumnos() {
   const last = {}; ses.forEach(s => { if (!last[s.alumno_id]) last[s.alumno_id] = s.fecha; });
   view.innerHTML = `<h1>Alumnos</h1>` + `<div class="panel"><h2 style="margin-bottom:6px">Contenido</h2><p class="muted" style="margin:0 0 10px">Carga o actualiza programas y ejercicios publicados en el repositorio. Se puede repetir sin duplicar nada.</p><button class="btn sm" data-sync>Sincronizar contenido</button><div id="syncout" class="muted" style="margin-top:10px"></div></div>` + avisosPanel(avs) + (al.length ? al.map(a => `<button class="stu" data-alumno="${a.id}"><span class="tx"><b>${esc(a.alias)}</b>${!a.activo ? '<span class="badge">Baja</span>' : ''}${a.debe_cambiar_clave ? '<span class="badge">Clave temporal</span>' : ''}<span class="s">${last[a.id] ? 'Último registro: ' + dateEs(last[a.id]) : 'Sin registros'}</span></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`).join('') : '<div class="panel"><p class="muted" style="margin:0">Aún no hay alumnos. Créalos en Supabase: Authentication → Users → Add user, con correo <b>alias@kokorosd.example</b>, una contraseña temporal y "Auto Confirm User".</p></div>');
 }
-function escuelaMaestro(id, regla, cuotas, grs, progs, nivs) {
+function escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp) {
   const yr = new Date().getFullYear();
   let h = `<h2 style="margin:18px 0 8px">Grados</h2><div class="panel" style="margin:0">`;
   progs.filter(p => p.slug !== 'fisico').forEach(p => {
@@ -407,6 +408,9 @@ function escuelaMaestro(id, regla, cuotas, grs, progs, nivs) {
     h += `<div class="kv"><span>${esc(p.nombre)}</span>${ns.length ? `<select class="sel" data-grado="${p.id}" data-al="${id}" aria-label="Grado en ${esc(p.nombre)}"><option value="">Sin asignar</option>${ns.map(n => `<option value="${n.id}"${n.id === cur ? ' selected' : ''}>${esc(n.nombre)}</option>`).join('')}</select>` : '<b>—</b>'}</div>`;
   });
   h += `</div>`;
+  if (imp !== null && imp !== undefined) {
+    h += `<h2 style="margin:18px 0 8px">Impreso de socio</h2><div class="panel" style="margin:0"><div class="reg"><label>Firmado recibido<input type="date" data-imp="1" data-al="${id}" value="${imp[0] ? imp[0].fecha_recibido : ''}"></label></div><small class="muted">Déjalo vacío si aún no ha llegado.</small></div>`;
+  }
   if (regla !== null) {
     const rm = Object.fromEntries(regla.map(r => [r.numero, r]));
     h += `<h2 style="margin:18px 0 8px">Entregas de la regla</h2><div class="panel" style="margin:0">` + Array.from({ length: 10 }, (_, i) => { const r = rm[i + 1] || {}; return `<div class="reg"><b>${i + 1}.ª</b><label>Recibida<input type="date" data-reg="${i + 1}" data-f="e" data-al="${id}" value="${r.fecha_entrega || ''}"></label><label>Terminada<input type="date" data-reg="${i + 1}" data-f="t" data-al="${id}" value="${r.fecha_terminada || ''}"></label></div>`; }).join('') + `</div>`;
@@ -419,7 +423,7 @@ function escuelaMaestro(id, regla, cuotas, grs, progs, nivs) {
 }
 async function renderAlumno(id) {
   view.innerHTML = '<div class="loading">Cargando…</div>';
-  const [perfil, asg, rec, ser, regla, cuotas, grs, progs, nivs] = await Promise.all([
+  const [perfil, asg, rec, ser, regla, cuotas, grs, progs, nivs, imp] = await Promise.all([
     q(sb.from('perfil').select('*').eq('id', id)),
     q(sb.from('asignacion').select('*').eq('alumno_id', id)),
     q(sb.from('recomendado').select('*').eq('alumno_id', id)),
@@ -428,7 +432,8 @@ async function renderAlumno(id) {
     q(sb.from('cuota_pendiente').select('*').eq('alumno_id', id).order('anio').order('trimestre')).catch(() => null),
     q(sb.from('grado_alumno').select('*').eq('alumno_id', id)).catch(() => []),
     q(sb.from('programa').select('*').order('orden')).catch(() => []),
-    q(sb.from('nivel').select('id,programa_id,nombre,orden').order('orden')).catch(() => [])
+    q(sb.from('nivel').select('id,programa_id,nombre,orden').order('orden')).catch(() => []),
+    q(sb.from('impreso_socio').select('fecha_recibido').eq('alumno_id', id)).catch(() => null)
   ]);
   const a = perfil[0]; if (!a) return go('alumnos');
   const faltan = [...new Set(ser.map(s => s.ejercicio_id))].filter(x => !S.ex[x]);
@@ -450,7 +455,7 @@ async function renderAlumno(id) {
       });
     }));
   }
-  h += escuelaMaestro(id, regla, cuotas, grs, progs, nivs);
+  h += escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp);
   h += `<h2 style="margin:18px 0 8px">Actividad reciente</h2>`;
   if (!ser.length) h += '<p class="muted">Sin registros todavía.</p>';
   else {
@@ -471,7 +476,7 @@ async function renderAlumno(id) {
 }
 
 /* ───────── inicio y programas técnicos ───────── */
-const P = { cargado: false, progs: [], nivs: [], tecs: [], mio: {}, val: {}, regSel: 0, grados: {}, notas: {}, avisos: [], infos: [], regla: {}, cuotas: [] };
+const P = { cargado: false, progs: [], nivs: [], tecs: [], mio: {}, val: {}, regSel: 0, grados: {}, notas: {}, avisos: [], infos: [], regla: {}, cuotas: [], impreso: null };
 async function cargarProgramas() {
   const uid = S.user.id;
   const [progs, nivs, tecs, mio, val, gr, notas] = await Promise.all([
@@ -480,11 +485,13 @@ async function cargarProgramas() {
     q(sb.from('progreso_tecnica').select('*').eq('alumno_id', uid)), q(sb.from('validacion_tecnica').select('*').eq('alumno_id', uid)),
     q(sb.from('grado_alumno').select('*').eq('alumno_id', uid).order('fecha')),
     q(sb.from('nota_tecnica').select('tecnica_id,texto').eq('alumno_id', uid)).catch(() => [])]);
-  const [avisos, infos, regla, cuotas] = await Promise.all([
+  const [avisos, infos, regla, cuotas, imp] = await Promise.all([
     q(sb.from('aviso').select('*').eq('activo', true).order('creado', { ascending: false }).limit(5)).catch(() => []),
     q(sb.from('info_pagina').select('slug,titulo,orden').order('orden')).catch(() => []),
     q(sb.from('entrega_regla').select('*').eq('alumno_id', uid)).catch(() => []),
-    q(sb.from('cuota_pendiente').select('*').eq('alumno_id', uid).order('anio').order('trimestre')).catch(() => [])]);
+    q(sb.from('cuota_pendiente').select('*').eq('alumno_id', uid).order('anio').order('trimestre')).catch(() => []),
+    q(sb.from('impreso_socio').select('fecha_recibido').eq('alumno_id', uid)).catch(() => [])]);
+  P.impreso = imp[0] ? imp[0].fecha_recibido : null;
   P.avisos = avisos; P.infos = infos; P.cuotas = cuotas; P.regla = Object.fromEntries(regla.map(r => [r.numero, r]));
   P.notas = Object.fromEntries(notas.map(n => [n.tecnica_id, n.texto]));
   P.progs = progs.filter(p => p.slug !== 'fisico'); P.nivs = nivs; P.tecs = tecs;
@@ -504,7 +511,8 @@ function escuelaCard() {
   const ed = sel ? `<div class="reged"><b>Entrega ${sel}</b><label>Recibida<input type="date" id="rg-e" value="${rs.fecha_entrega || ''}"></label><label>Terminada<input type="date" id="rg-t" value="${rs.fecha_terminada || ''}"></label><div class="acts"><button class="btn sm" data-regsave="${sel}">Guardar</button><button class="btn alt sm" data-regclear="${sel}">Borrar</button><button class="btn alt sm" data-regclose>Cerrar</button></div></div>` : '<small class="muted">Toca un número para anotar las fechas.</small>';
   return `<div class="panel" style="margin:0 0 10px"><div class="kv"><span>Cuotas pendientes</span><b class="${P.cuotas.length ? 'pend' : 'okc'}">${P.cuotas.length ? P.cuotas.length : 'Al día'}</b></div>${P.cuotas.length ? `<small class="muted">${esc(cuotaTxt(P.cuotas))}</small>` : ''}</div>
   <div class="panel" style="margin:0 0 10px"><div class="kv"><span>Entregas de la regla</span><b>${rec} de 10 recibidas · ${ter} terminadas</b></div><div class="pills">${pills}</div>${ed}</div>
-  <div class="panel" style="margin:0">${gr}</div>`;
+  <div class="panel" style="margin:0 0 10px">${gr}</div>
+  <div class="panel" style="margin:0"><div class="kv"><span>Impreso de socio firmado</span><b class="${P.impreso ? 'okc' : 'pend'}">${P.impreso ? 'Recibido el ' + dateEs(P.impreso) : 'Pendiente'}</b></div>${!P.impreso && FORM_IMPRESO ? `<a class="btn sm" style="margin-top:10px;display:inline-block" href="${FORM_IMPRESO}" target="_blank" rel="noopener noreferrer">Subir impreso firmado</a>` : ''}</div>`;
 }
 async function renderInicio() {
   view.innerHTML = '<h1>Hola, ' + esc(S.perfil.alias) + '</h1><div class="loading">Cargando…</div>';
@@ -609,6 +617,10 @@ document.addEventListener('change', async ev => {
       let r = await sb.from('grado_alumno').delete().eq('alumno_id', d.al).in('nivel_id', ns); if (r.error) throw r.error;
       if (t.value) { r = await sb.from('grado_alumno').insert({ alumno_id: d.al, nivel_id: t.value, asignado_por: S.user.id }); if (r.error) throw r.error; }
       toast('Grado guardado');
+    }
+    if (d.imp) {
+      const r = t.value ? await sb.from('impreso_socio').upsert({ alumno_id: d.al, fecha_recibido: t.value }, { onConflict: 'alumno_id' }) : await sb.from('impreso_socio').delete().eq('alumno_id', d.al);
+      if (r.error) throw r.error; toast('Impreso guardado');
     }
     if (d.reg) {
       const row = t.closest('.reg'), e = row.querySelector('[data-f="e"]').value || null, f = row.querySelector('[data-f="t"]').value || null;
