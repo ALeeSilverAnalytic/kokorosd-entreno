@@ -30,6 +30,7 @@ const IC = {
   chev: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
   check: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.2l7.1-.6z"/></svg>',
+  play2: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
   play: '<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'
 };
 const NAV = {
@@ -42,6 +43,8 @@ const NAV = {
 function imgSrc(e, i) { const p = e && e.imagenes && e.imagenes[i]; return p ? IMG[0] + p : ''; }
 window.imgFail = el => { if (el.dataset.f) return; el.dataset.f = 1; el.src = el.src.replace(IMG[0], IMG[1]); };
 const imgTag = (e, i, cls, alt) => `<img ${cls ? `class="${cls}"` : ''} alt="${esc(alt || '')}" src="${imgSrc(e, i)}" onerror="imgFail(this)">`;
+const OKHOST = /^https:\/\/(www\.)?(youtube\.com|youtu\.be|drive\.google\.com)\//;
+const rich = t => esc(t).replace(/\[([^\]]+)\]\((https:[^)\s]+)\)/g, (m, l, u) => OKHOST.test(u.replace(/&amp;/g, '&')) ? `<a class="vl" href="${u}" target="_blank" rel="noopener noreferrer">${IC.play2}${l}</a>` : m);
 const q = async p => { const r = await p; if (r.error) throw r.error; return r.data || []; };
 const isNet = e => !e || e.status === 0 || /fetch|network|failed|timeout/i.test(e.message || '') || e.status === 401 || e.code === 'PGRST301';
 
@@ -479,6 +482,8 @@ function renderNivel(nid) {
   const n = P.nivs.find(x => x.id === nid); if (!n) return go('inicio');
   const l = tecsDe(nid);
   let h = `<button class="back" data-prog="${n.programa_id}">${IC.chev}${esc((P.progs.find(p => p.id === n.programa_id) || {}).nombre || 'Programa')}</button><h1>${esc(n.nombre)}</h1><p class="muted" style="margin:4px 0 8px">${nDom(l)} de ${l.length} técnicas. Toca una técnica para cambiar su estado: sin marcar, practicando, dominada.</p>`;
+  const dt = n.detalle || {};
+  if (dt.virtud) h += `<div class="panel nivdet"><b>Virtud: ${esc(dt.virtud)}</b>${[['Trabajo base', dt.trabajo_base], ['Actitudes', dt.actitudes], ['Pensamientos correctos', dt.pensamientos], ['Hitos', dt.hitos], ['Defectos', dt.defectos]].filter(x => x[1]).map(x => `<div><span>${x[0]}:</span> ${esc(x[1])}</div>`).join('')}${dt.intro ? `<p class="muted">${esc(dt.intro)}</p>` : ''}</div>`;
   const grupos = []; l.forEach(t => { let g = grupos[grupos.length - 1]; if (!g || g.k !== t.seccion) { g = { k: t.seccion, l: [] }; grupos.push(g); } g.l.push(t); });
   let sec = null;
   grupos.forEach(g => {
@@ -488,7 +493,7 @@ function renderNivel(nid) {
     g.l.forEach(t => {
       const v = P.val[t.id], e = EST[P.mio[t.id]];
       const nt = P.notas[t.id];
-      h += `<div class="tecw"><button class="tec${v ? ' val' : ''}" data-tec="${t.id}"><span class="cod">${esc(t.codigo || '·')}</span><span class="tx">${esc(t.titulo)}</span>${v ? '<span class="chip ok">Validada</span>' : e ? `<span class="chip ${e[1]}">${e[0]}</span>` : ''}</button><button class="nbtn${nt ? ' on' : ''}" data-nota="${t.id}" aria-label="Nota de ${esc(t.titulo)}" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="${nt ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 3h14v14l-5 4H5z"/><path d="M14 21v-4h5"/></svg></button><div class="nbox" id="nb-${t.id}" hidden><textarea maxlength="200" rows="2" data-notatxt="${t.id}" placeholder="Tu nota (máx. 200 caracteres)">${esc(nt || '')}</textarea><small class="muted">Solo la ves tú y tu maestro.</small></div></div>`;
+      h += `<div class="tecw"><div class="tec${v ? ' val' : ''}" role="button" tabindex="0" data-tec="${t.id}"><span class="cod">${esc(t.codigo || '·')}</span><span class="tx">${rich(t.titulo)}</span>${v ? '<span class="chip ok">Validada</span>' : e ? `<span class="chip ${e[1]}">${e[0]}</span>` : ''}</div><button class="nbtn${nt ? ' on' : ''}" data-nota="${t.id}" aria-label="Nota de la técnica ${esc(t.codigo || '')}" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="${nt ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 3h14v14l-5 4H5z"/><path d="M14 21v-4h5"/></svg></button><div class="nbox" id="nb-${t.id}" hidden><textarea maxlength="200" rows="2" data-notatxt="${t.id}" placeholder="Tu nota (máx. 200 caracteres)">${esc(nt || '')}</textarea><small class="muted">Solo la ves tú y tu maestro.</small></div></div>`;
     });
   });
   if (sec !== null) h += '</section>';
@@ -532,6 +537,7 @@ document.addEventListener('submit', async ev => {
 document.addEventListener('input', ev => {
   if (ev.target.id === 'busca') { clearTimeout(swapTimer); const v = ev.target.value; swapTimer = setTimeout(() => { buscarEj(window.__swapItem, v, S.ex[exOf(S.items[window.__swapItem])] || {}); }, 300); }
 });
+document.addEventListener('keydown', ev => { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('[data-tec]')) { ev.preventDefault(); ev.target.click(); } });
 document.addEventListener('focusout', async ev => {
   const ta = ev.target; if (!ta.dataset || !ta.dataset.notatxt) return;
   const id = ta.dataset.notatxt, txt = ta.value.trim().slice(0, 200);
@@ -541,7 +547,8 @@ document.addEventListener('focusout', async ev => {
   await enqueue(txt ? { k: 'ups', t: 'nota_tecnica', conf: 'alumno_id,tecnica_id', row: { alumno_id: S.user.id, tecnica_id: id, texto: txt, actualizado: new Date().toISOString() } } : { k: 'del', t: 'nota_tecnica', m: { alumno_id: S.user.id, tecnica_id: id } });
 });
 document.addEventListener('click', async ev => {
-  const b = ev.target.closest('button'); if (!b) return;
+  if (ev.target.closest('a')) return;
+  const b = ev.target.closest('button, [data-tec]'); if (!b) return;
   const d = b.dataset;
   try {
     if (d.tab) return go(d.tab);
