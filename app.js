@@ -5,6 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
+const VERSION = 'v8';
 const IMG = ['https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises/',
              'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/'];
 
@@ -375,6 +376,7 @@ function renderCuenta() {
   <div class="field"><label for="p2">Repítela</label><input id="p2" type="password" autocomplete="new-password" minlength="8" required></div>
   <button class="btn sm" type="submit">Cambiar contraseña</button></form></div>
   <button class="btn alt sm" data-logout>Cerrar sesión</button>
+  <div class="panel"><div class="row"><label>Versión de la app</label><b>${VERSION}</b></div><button class="btn alt sm" data-update style="margin-top:10px">Actualizar la app</button><p class="muted" style="margin:8px 0 0">Si falta algo que ya debería estar, pulsa este botón: borra la copia guardada y vuelve a descargar la última versión.</p></div>
   <div class="panel"><h2 style="margin-bottom:6px">Créditos</h2><p style="margin:0 0 8px">Imágenes e instrucciones de <a href="https://github.com/yuhonas/free-exercise-db" target="_blank" rel="noopener">Free Exercise DB</a>, en dominio público (Unlicense). Los textos de instrucciones están en inglés.</p><p class="muted" style="margin:0">Herramienta interna de la Asociación Kokorosd de Silat y otras AAMM. Gratuita y sin fines de lucro.</p></div>`;
 }
 
@@ -595,6 +597,11 @@ document.addEventListener('click', async ev => {
       delete S.sust[d.unswap]; return renderExercise(d.unswap);
     }
     // maestro
+    if ('update' in d) {
+      b.disabled = true; b.textContent = 'Actualizando…';
+      try { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map(r => r.unregister())); const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); } catch (e) { console.warn(e); }
+      return location.reload();
+    }
     if ('sync' in d) {
       const out = $('#syncout'); b.disabled = true; b.textContent = 'Sincronizando…';
       try { await sincronizar(m => { out.textContent = m; }); out.textContent = 'Listo. ' + out.textContent; toast('Contenido sincronizado'); }
