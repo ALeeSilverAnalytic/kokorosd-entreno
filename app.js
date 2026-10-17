@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v9';
+const VERSION = 'v10';
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
 const TRIM = ['1.º', '2.º', '3.º', '4.º'];
@@ -471,7 +471,7 @@ async function renderAlumno(id) {
 }
 
 /* ───────── inicio y programas técnicos ───────── */
-const P = { cargado: false, progs: [], nivs: [], tecs: [], mio: {}, val: {}, grados: {}, notas: {}, avisos: [], infos: [], regla: {}, cuotas: [] };
+const P = { cargado: false, progs: [], nivs: [], tecs: [], mio: {}, val: {}, regSel: 0, grados: {}, notas: {}, avisos: [], infos: [], regla: {}, cuotas: [] };
 async function cargarProgramas() {
   const uid = S.user.id;
   const [progs, nivs, tecs, mio, val, gr, notas] = await Promise.all([
@@ -499,9 +499,11 @@ const cuotaTxt = list => list.map(c => `${c.anio} · ${TRIM[c.trimestre - 1]} tr
 function escuelaCard() {
   const gr = P.progs.map(p => { const ns = P.nivs.filter(n => n.programa_id === p.id); return `<div class="kv"><span>${esc(p.nombre)}</span><b>${ns.length ? esc((P.grados[p.id] || {}).nombre || 'Sin asignar') : '—'}</b></div>`; }).join('');
   const rec = Object.values(P.regla).filter(r => r.fecha_entrega).length, ter = Object.values(P.regla).filter(r => r.fecha_terminada).length;
-  const pills = Array.from({ length: 10 }, (_, i) => { const r = P.regla[i + 1] || {}, c = r.fecha_terminada ? 'ter' : r.fecha_entrega ? 'rec' : ''; return `<span class="pill ${c}" title="${r.fecha_entrega ? 'Recibida ' + dateEs(r.fecha_entrega) : 'Pendiente'}${r.fecha_terminada ? ' · terminada ' + dateEs(r.fecha_terminada) : ''}">${i + 1}</span>`; }).join('');
+  const pills = Array.from({ length: 10 }, (_, i) => { const r = P.regla[i + 1] || {}, c = r.fecha_terminada ? 'ter' : r.fecha_entrega ? 'rec' : ''; return `<button class="pill ${c}${P.regSel === i + 1 ? ' sel' : ''}" data-regsel="${i + 1}" aria-label="Entrega ${i + 1}" title="${r.fecha_entrega ? 'Recibida ' + dateEs(r.fecha_entrega) : 'Pendiente'}${r.fecha_terminada ? ' · terminada ' + dateEs(r.fecha_terminada) : ''}">${i + 1}</button>`; }).join('');
+  const sel = P.regSel, rs = P.regla[sel] || {};
+  const ed = sel ? `<div class="reged"><b>Entrega ${sel}</b><label>Recibida<input type="date" id="rg-e" value="${rs.fecha_entrega || ''}"></label><label>Terminada<input type="date" id="rg-t" value="${rs.fecha_terminada || ''}"></label><div class="acts"><button class="btn sm" data-regsave="${sel}">Guardar</button><button class="btn alt sm" data-regclear="${sel}">Borrar</button><button class="btn alt sm" data-regclose>Cerrar</button></div></div>` : '<small class="muted">Toca un número para anotar las fechas.</small>';
   return `<div class="panel" style="margin:0 0 10px"><div class="kv"><span>Cuotas pendientes</span><b class="${P.cuotas.length ? 'pend' : 'okc'}">${P.cuotas.length ? P.cuotas.length : 'Al día'}</b></div>${P.cuotas.length ? `<small class="muted">${esc(cuotaTxt(P.cuotas))}</small>` : ''}</div>
-  <div class="panel" style="margin:0 0 10px"><div class="kv"><span>Entregas de la regla</span><b>${rec} de 10 recibidas · ${ter} terminadas</b></div><div class="pills">${pills}</div></div>
+  <div class="panel" style="margin:0 0 10px"><div class="kv"><span>Entregas de la regla</span><b>${rec} de 10 recibidas · ${ter} terminadas</b></div><div class="pills">${pills}</div>${ed}</div>
   <div class="panel" style="margin:0">${gr}</div>`;
 }
 async function renderInicio() {
@@ -510,7 +512,7 @@ async function renderInicio() {
   const rut = S.rutinas.find(r => r.id === S.sel.r) || S.rutinas[0], bl = rut ? bloquesDe(rut.id) : [], dia = bl.find(b => b.id === S.sel.b) || bl[0];
   let h = `<h1>Hola, ${esc(S.perfil.alias)}</h1>`;
   if (P.avisos.length) h += `<h2 style="margin:18px 0 8px">Avisos</h2>` + P.avisos.map(a => `<div class="panel aviso" style="margin:0 0 8px"><b>${esc(a.titulo)}</b><small class="muted">${dateEs(a.creado.slice(0, 10))}</small>${a.texto ? `<p style="margin:6px 0 0">${esc(a.texto)}</p>` : ''}</div>`).join('');
-  h += `<h2 style="margin:22px 0 8px">Tú en la escuela</h2>` + escuelaCard();
+  h += `<h2 style="margin:22px 0 8px">Tú en la escuela</h2><div id="escuela-card">` + escuelaCard() + `</div>`;
   h += `<h2 style="margin:22px 0 8px">Entrenamiento físico</h2>` + (rut && dia
     ? `<button class="pcard wide" data-tab="hoy"><span class="tx"><b>${esc(rut.nombre)}</b><small>${esc(diaLabel(dia))} · ${esc(dia.nombre)}</small></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`
     : `<div class="panel" style="margin:0"><p class="muted" style="margin:0">Aún no tienes rutina asignada.</p></div>`);
@@ -673,6 +675,17 @@ document.addEventListener('click', async ev => {
       delete S.sust[d.unswap]; return renderExercise(d.unswap);
     }
     // maestro
+    if (d.regsel) { P.regSel = P.regSel === +d.regsel ? 0 : +d.regsel; $('#escuela-card').innerHTML = escuelaCard(); return; }
+    if ('regclose' in d) { P.regSel = 0; $('#escuela-card').innerHTML = escuelaCard(); return; }
+    if (d.regsave || d.regclear) {
+      const n = +(d.regsave || d.regclear), e = d.regclear ? null : ($('#rg-e').value || null), f = d.regclear ? null : ($('#rg-t').value || null);
+      if (f && !e) return toast('Indica también la fecha de recibida.');
+      if (e && f && f < e) return toast('La fecha de terminada no puede ser anterior a la de recibida.');
+      if (e) P.regla[n] = { alumno_id: S.user.id, numero: n, fecha_entrega: e, fecha_terminada: f }; else delete P.regla[n];
+      P.regSel = 0; $('#escuela-card').innerHTML = escuelaCard();
+      await enqueue(e ? { k: 'ups', t: 'entrega_regla', conf: 'alumno_id,numero', row: { alumno_id: S.user.id, numero: n, fecha_entrega: e, fecha_terminada: f } } : { k: 'del', t: 'entrega_regla', m: { alumno_id: S.user.id, numero: n } });
+      return;
+    }
     if ('avnuevo' in d) {
       const t = $('#av-t').value.trim(), x = $('#av-x').value.trim(); if (!t) return toast('Escribe un título.');
       const r = await sb.from('aviso').insert({ titulo: t, texto: x || null }); if (r.error) return toast('No se pudo publicar.');

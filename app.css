@@ -3,7 +3,7 @@
 :root{
   --bg:#121217; --surface:#1b1b23; --surface2:#25252f; --line:#32323e;
   --fg:#ecebf0; --muted:#a09fad; --accent:#e5503a; --accent-solid:#b3170a; --accent-fg:#ffffff;
-  --ok:#62c48f; --paper:#ffffff;
+  --ok:#62c48f; --info:#3b82d6; --paper:#ffffff;
   --logo-white:block; --logo-red:none;
   --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
   --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -11,7 +11,7 @@
 }
 @media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
   --bg:#f2f1f4; --surface:#ffffff; --surface2:#e9e8ee; --line:#d6d5dd;
-  --fg:#1a1a22; --muted:#5f5e6c; --accent:#a40e00; --accent-solid:#a40e00; --ok:#1f8a55;
+  --fg:#1a1a22; --muted:#5f5e6c; --accent:#a40e00; --accent-solid:#a40e00; --ok:#1f8a55; --info:#1f66b8;
   --logo-white:none; --logo-red:block; color-scheme:light;}}
 :root[data-theme="light"]{
   --bg:#f2f1f4; --surface:#ffffff; --surface2:#e9e8ee; --line:#d6d5dd;
@@ -161,8 +161,8 @@ a.vl:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .kv span{color:var(--muted);font-size:14px}.kv b{font-weight:600;text-align:right}
 .pend{color:var(--accent)}.okc{color:var(--ok)}
 .pills{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
-.pill{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
-.pill.rec{border-color:var(--accent);color:var(--accent)}.pill.ter{background:var(--ok);border-color:var(--ok);color:#0b2417}
+.pill{padding:0;background:none;width:32px;height:32px;cursor:pointer;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pill.rec{background:var(--info);border-color:var(--info);color:#fff}.pill.ter{background:var(--ok);border-color:var(--ok);color:#0b2417}
 .aviso small{display:block}
 .prosa p{margin:0 0 10px;line-height:1.5}.prosa p.ind{margin-left:16px}
 a.pcard.dl{text-decoration:none;color:inherit}
@@ -173,3 +173,9 @@ a.pcard.dl{text-decoration:none;color:inherit}
 .reg label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:2px;flex:1;min-width:120px}
 .reg input[type=date]{font:inherit;color:var(--fg);background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:6px}
 textarea.ta{width:100%;font:inherit;color:var(--fg);background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px;resize:vertical}
+
+.pill.sel{outline:2px solid var(--fg);outline-offset:2px}
+.reged{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.reged label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:2px}
+.reged input[type=date]{font:inherit;color:var(--fg);background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:8px}
+.reged .acts{display:flex;gap:8px;flex-wrap:wrap}
