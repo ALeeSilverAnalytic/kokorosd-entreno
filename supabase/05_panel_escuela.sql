@@ -40,3 +40,6 @@ create policy "lee lo suyo" on public.entrega_regla for select to authenticated 
 create policy "maestro escribe" on public.entrega_regla for all to authenticated using (public.es_maestro()) with check (public.es_maestro());
 create policy "lee lo suyo" on public.cuota_pendiente for select to authenticated using (alumno_id = (select auth.uid()) or public.es_maestro());
 create policy "maestro escribe" on public.cuota_pendiente for all to authenticated using (public.es_maestro()) with check (public.es_maestro());
+
+-- Permisos de acceso por la API (necesarios desde el 30-oct-2026 en tablas nuevas). RLS sigue limitando las filas.
+grant select, insert, update, delete on public.aviso, public.info_pagina, public.entrega_regla, public.cuota_pendiente to authenticated;

@@ -13,3 +13,6 @@ create policy "gestiona lo suyo" on public.nota_tecnica for all to authenticated
   with check (alumno_id = (select auth.uid()) and public.es_activo());
 create policy "maestro lee" on public.nota_tecnica for select to authenticated
   using (public.es_maestro());
+
+-- Permiso de acceso por la API (necesario desde el 30-oct-2026 en tablas nuevas). RLS sigue limitando las filas.
+grant select, insert, update, delete on public.nota_tecnica to authenticated;

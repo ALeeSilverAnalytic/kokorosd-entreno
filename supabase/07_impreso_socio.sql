@@ -9,3 +9,6 @@ create policy "lee lo suyo" on public.impreso_socio for select to authenticated
   using (alumno_id = (select auth.uid()) or public.es_maestro());
 create policy "maestro escribe" on public.impreso_socio for all to authenticated
   using (public.es_maestro()) with check (public.es_maestro());
+
+-- Permiso de acceso por la API (necesario desde el 30-oct-2026 en tablas nuevas). RLS sigue limitando las filas.
+grant select, insert, update, delete on public.impreso_socio to authenticated;
