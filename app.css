@@ -185,3 +185,4 @@ details.aviso>summary::-webkit-details-marker{display:none}
 details.aviso>summary::after{content:"";position:absolute;right:4px;top:50%;width:8px;height:8px;margin-top:-6px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .15s}
 details.aviso[open]>summary::after{transform:rotate(-135deg);margin-top:-2px}
 details.aviso>summary:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:6px}
+.kv .btn.sm{font-size:13px;letter-spacing:.03em;white-space:nowrap;margin-top:0}

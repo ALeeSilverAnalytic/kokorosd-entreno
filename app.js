@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v14';
+const VERSION = 'v15';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
@@ -390,6 +390,58 @@ const avisosPanel = avs => avs === null ? '' : `<div class="panel"><h2 style="ma
   <div class="field"><label for="av-x">Texto (máx. 500)</label><textarea id="av-x" maxlength="500" rows="3" class="ta"></textarea></div>
   <button class="btn sm" data-avnuevo>Publicar aviso</button>
   ${avs.map(a => `<div class="kv" style="margin-top:8px"><span style="color:var(--fg)">${esc(a.titulo)}</span><button class="btn alt sm" data-avdel="${a.id}">Quitar</button></div>`).join('')}</div>`;
+/* ───────── altas, claves y copia de seguridad (solo maestro) ───────── */
+const BK_TABLAS = { asignacion: 'alumno_id,rutina_id', recomendado: 'alumno_id,bloque_item_id', sustitucion: 'alumno_id,bloque_item_id', serie_registro: 'id', marca_hecho: 'alumno_id,bloque_item_id,fecha', progreso_tecnica: 'alumno_id,tecnica_id', validacion_tecnica: 'alumno_id,tecnica_id', grado_alumno: 'alumno_id,nivel_id', nota_tecnica: 'alumno_id,tecnica_id', entrega_regla: 'alumno_id,numero', cuota_pendiente: 'alumno_id,anio,trimestre', impreso_socio: 'alumno_id', aviso: 'id' };
+const ALTA = { prev: [], res: [], exist: new Set() };
+const normAlias = t => String(t || '').split(/[\t;,]/)[0].split('@')[0].normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9._-]/g, '');
+const aliasOk = a => /^[a-z0-9][a-z0-9._-]{2,29}$/.test(a);
+const urlApp = () => location.origin + location.pathname;
+const msgAlta = (alias, clave) => `Hola, ya tienes tu cuenta en la app de la escuela.\nEntra en: ${urlApp()}\nAlias: ${alias}\nClave temporal: ${clave}\nAl entrar te pedirá elegir una clave tuya. Guárdala bien.`;
+async function copiar(txt) {
+  try { await navigator.clipboard.writeText(txt); return true; } catch (e) {
+    const t = document.createElement('textarea'); t.value = txt; t.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(t); t.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch (e2) {} t.remove(); return ok;
+  }
+}
+function descargar(nombre, texto, tipo) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([texto], { type: tipo })); a.download = nombre; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+async function llamarAdmin(body) {
+  const { data, error } = await sb.functions.invoke('admin-alumnos', { body });
+  if (error) {
+    let m = error.message || 'Error';
+    try { const j = await error.context.json(); if (j && j.error) m = j.error; } catch (e) {}
+    if (/not found|404|Failed to send/i.test(m)) m = 'La función de Supabase aún no está activada (o no responde).';
+    throw new Error(m);
+  }
+  return data;
+}
+const altaPanel = () => `<div class="panel"><h2 style="margin-bottom:6px">Añadir alumnos</h2>
+  <p class="muted" style="margin:0 0 10px">Pega los alias, uno por línea (puedes copiar una columna del Excel). Se pasan a minúsculas y sin acentos.</p>
+  <textarea id="alta-txt" class="ta" rows="4" placeholder="maria-lopez&#10;juan.perez&#10;…" aria-label="Alias de los nuevos alumnos"></textarea>
+  <button class="btn alt sm" data-alta-rev>Revisar</button><div id="alta-out" style="margin-top:10px"></div></div>`;
+const copiaPanel = () => `<div class="panel"><h2 style="margin-bottom:6px">Copia de seguridad</h2>
+  <p class="muted" style="margin:0 0 10px">Descarga todos los datos de los alumnos en un archivo. Guárdalo fuera del móvil (Drive, correo). No incluye las claves. Para restaurar, primero deben existir las cuentas (mismos alias).</p>
+  <button class="btn sm" data-bk-export>Descargar copia</button>
+  <button class="btn alt sm" data-bk-import>Importar copia</button><input type="file" id="bk-file" data-bkfile accept=".json,application/json" hidden>
+  <div id="bk-out" class="muted" style="margin-top:10px"></div></div>`;
+function altaRender() {
+  const o = $('#alta-out'); if (!o) return;
+  if (ALTA.res.length) {
+    const ok = ALTA.res.filter(r => r.ok), ko = ALTA.res.filter(r => !r.ok);
+    o.innerHTML = `<div class="panel" style="margin:0"><b>${ok.length} cuenta(s) creada(s)</b><p class="muted" style="margin:4px 0 10px">Las claves solo se muestran ahora. Cópialas antes de salir de esta pantalla.</p>`
+      + ok.map(r => `<div class="kv"><span style="color:var(--fg)">${esc(r.alias)} · <b>${esc(r.clave)}</b></span><button class="btn alt sm" style="width:auto;padding:8px 12px" data-msg-alias="${esc(r.alias)}" data-msg-clave="${esc(r.clave)}">Copiar mensaje</button></div>`).join('')
+      + (ko.length ? `<p class="muted" style="margin:10px 0 0">No creadas: ${ko.map(r => esc(r.alias) + ' (' + esc(r.error) + ')').join(', ')}</p>` : '')
+      + (ok.length ? `<button class="btn sm" data-alta-copy>Copiar todas</button><button class="btn alt sm" data-alta-csv>Descargar CSV</button>` : '') + `</div>`;
+    return;
+  }
+  const v = ALTA.prev;
+  if (!v.length) { o.innerHTML = '<span class="muted">No hay ningún alias.</span>'; return; }
+  const nuevos = v.filter(x => x.est === 'nuevo');
+  o.innerHTML = v.map(x => `<div class="kv"><span style="color:var(--fg)">${esc(x.alias || '—')}</span><b class="${x.est === 'nuevo' ? 'okc' : 'pend'}">${x.est === 'nuevo' ? 'Nuevo' : x.est}</b></div>`).join('')
+    + (nuevos.length ? `<button class="btn sm" data-alta-go>Crear ${nuevos.length} cuenta(s)</button>` : '');
+}
 async function renderAlumnos() {
   view.innerHTML = '<h1>Alumnos</h1><div class="loading">Cargando…</div>';
   const [al, ses, avs] = await Promise.all([
@@ -398,7 +450,8 @@ async function renderAlumnos() {
     q(sb.from('aviso').select('*').eq('activo', true).order('creado', { ascending: false }).limit(10)).catch(() => null)
   ]);
   const last = {}; ses.forEach(s => { if (!last[s.alumno_id]) last[s.alumno_id] = s.fecha; });
-  view.innerHTML = `<h1>Alumnos</h1>` + `<div class="panel"><h2 style="margin-bottom:6px">Contenido</h2><p class="muted" style="margin:0 0 10px">Carga o actualiza programas y ejercicios publicados en el repositorio. Se puede repetir sin duplicar nada.</p><button class="btn sm" data-sync>Sincronizar contenido</button><div id="syncout" class="muted" style="margin-top:10px"></div></div>` + avisosPanel(avs) + (al.length ? al.map(a => `<button class="stu" data-alumno="${a.id}"><span class="tx"><b>${esc(a.alias)}</b>${!a.activo ? '<span class="badge">Baja</span>' : ''}${a.debe_cambiar_clave ? '<span class="badge">Clave temporal</span>' : ''}<span class="s">${last[a.id] ? 'Último registro: ' + dateEs(last[a.id]) : 'Sin registros'}</span></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`).join('') : '<div class="panel"><p class="muted" style="margin:0">Aún no hay alumnos. Créalos en Supabase: Authentication → Users → Add user, con correo <b>alias@kokorosd.example</b>, una contraseña temporal y "Auto Confirm User".</p></div>');
+  ALTA.exist = new Set(al.map(a => a.alias)); ALTA.prev = []; ALTA.res = [];
+  view.innerHTML = `<h1>Alumnos</h1>` + `<div class="panel"><h2 style="margin-bottom:6px">Contenido</h2><p class="muted" style="margin:0 0 10px">Carga o actualiza programas y ejercicios publicados en el repositorio. Se puede repetir sin duplicar nada.</p><button class="btn sm" data-sync>Sincronizar contenido</button><div id="syncout" class="muted" style="margin-top:10px"></div></div>` + altaPanel() + copiaPanel() + avisosPanel(avs) + (al.length ? al.map(a => `<button class="stu" data-alumno="${a.id}"><span class="tx"><b>${esc(a.alias)}</b>${!a.activo ? '<span class="badge">Baja</span>' : ''}${a.debe_cambiar_clave ? '<span class="badge">Clave temporal</span>' : ''}<span class="s">${last[a.id] ? 'Último registro: ' + dateEs(last[a.id]) : 'Sin registros'}</span></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`).join('') : '<div class="panel"><p class="muted" style="margin:0">Aún no hay alumnos. Añádelos con el cuadro "Añadir alumnos".</p></div>');
 }
 function escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp) {
   const yr = new Date().getFullYear();
@@ -471,6 +524,7 @@ async function renderAlumno(id) {
       h += `<h2 style="margin:18px 0 8px">Notas en técnicas</h2><div class="panel" style="padding:6px 14px">` + nts.map(n => { const t = ts.find(x => x.id === n.tecnica_id) || {}; const l = nv.find(x => x.id === t.nivel_id) || {}; return `<div class="sess"><b>${esc(l.nombre || '')} · ${esc(t.codigo || '')} ${esc(t.titulo || '')}</b><div><span>${esc(n.texto)}</span></div></div>`; }).join('') + '</div>';
     }
   } catch (e) { console.warn(e); }
+  h += `<button class="btn alt sm" style="margin-top:14px" data-reset="${id}" data-alias="${esc(a.alias)}">Restablecer clave</button><div id="reset-out" style="margin-top:8px"></div>`;
   h += `<button class="btn alt sm" style="margin-top:14px" data-baja="${id}" data-act="${a.activo ? 1 : 0}">${a.activo ? 'Dar de baja a este alumno' : 'Reactivar a este alumno'}</button>`;
   view.innerHTML = h;
 }
@@ -612,6 +666,33 @@ document.addEventListener('input', ev => {
 document.addEventListener('change', async ev => {
   const t = ev.target, d = t.dataset || {};
   try {
+    if (d.bkfile !== undefined) {
+      const f = t.files && t.files[0]; t.value = ''; if (!f) return;
+      const out = $('#bk-out'); let cp;
+      try { cp = JSON.parse(await f.text()); if (cp.version !== 1 || !cp.tablas || !cp.perfiles) throw 0; } catch (e) { return toast('El archivo no es una copia válida.'); }
+      const actuales = await q(sb.from('perfil').select('id,alias')), porAlias = Object.fromEntries(actuales.map(p => [p.alias, p.id]));
+      const mapa = {}; cp.perfiles.forEach(p => { if (porAlias[p.alias]) mapa[p.id] = porAlias[p.alias]; });
+      const sinCuenta = cp.perfiles.filter(p => !mapa[p.id] && p.rol === 'alumno').map(p => p.alias);
+      const total = Object.values(cp.tablas).reduce((x, r) => x + r.length, 0);
+      if (!confirm('Importar ' + total + ' filas de ' + Object.keys(mapa).length + ' alumnos con cuenta.' + (sinCuenta.length ? '\nSin cuenta (se omiten): ' + sinCuenta.join(', ') + '.' : '') + '\nSe mezcla con lo actual y no se borra nada. ¿Seguir?')) return;
+      let ok = 0, omit = 0, fall = 0;
+      for (const [tb, rows] of Object.entries(cp.tablas)) {
+        if (!BK_TABLAS[tb]) continue;
+        const buenas = [];
+        rows.forEach(r => {
+          const x = { ...r };
+          if ('alumno_id' in x) { if (!mapa[x.alumno_id]) { omit++; return; } x.alumno_id = mapa[x.alumno_id]; }
+          ['validada_por', 'asignado_por'].forEach(c => { if (c in x) x[c] = x[c] ? (mapa[x[c]] || null) : null; });
+          buenas.push(x);
+        });
+        for (let i = 0; i < buenas.length; i += 400) {
+          out.textContent = 'Importando ' + tb + ' (' + Math.min(i + 400, buenas.length) + ' de ' + buenas.length + ')…';
+          try { const r = await llamarAdmin({ accion: 'importar', tabla: tb, filas: buenas.slice(i, i + 400) }); ok += r.ok; fall += r.fallidas; } catch (e) { out.textContent = e.message; return; }
+        }
+      }
+      out.textContent = 'Importación terminada: ' + ok + ' filas cargadas' + (omit ? ', ' + omit + ' omitidas (alumno sin cuenta)' : '') + (fall ? ', ' + fall + ' no se pudieron cargar' : '') + '.';
+      return;
+    }
     if (d.grado) {
       const ns = (await q(sb.from('nivel').select('id').eq('programa_id', d.grado))).map(n => n.id);
       let r = await sb.from('grado_alumno').delete().eq('alumno_id', d.al).in('nivel_id', ns); if (r.error) throw r.error;
@@ -738,6 +819,46 @@ document.addEventListener('click', async ev => {
       const r = d.on === '1' ? await sb.from('recomendado').delete().match({ alumno_id: d.al, bloque_item_id: d.rec }) : await sb.from('recomendado').upsert({ alumno_id: d.al, bloque_item_id: d.rec }, { onConflict: 'alumno_id,bloque_item_id' });
       if (r.error) return toast('No se pudo guardar.'); const y = view.scrollTop; await renderAlumno(d.al); view.scrollTop = y; return;
     }
+    if ('altaRev' in d) {
+      const ls = $('#alta-txt').value.split('\n').map(x => x.trim()).filter(Boolean), vistos = new Set();
+      ALTA.res = []; ALTA.prev = ls.map(raw => { const alias = normAlias(raw); let est = 'nuevo';
+        if (!aliasOk(alias)) est = 'No válido (3 a 30 caracteres)'; else if (ALTA.exist.has(alias)) est = 'Ya existe'; else if (vistos.has(alias)) est = 'Repetido'; vistos.add(alias); return { alias, est }; });
+      return altaRender();
+    }
+    if ('altaGo' in d) {
+      const al = ALTA.prev.filter(x => x.est === 'nuevo').map(x => x.alias); if (!al.length) return;
+      b.disabled = true; b.textContent = 'Creando…';
+      try { const r = await llamarAdmin({ accion: 'crear', aliases: al }); ALTA.res = r.resultados || []; ALTA.res.filter(x => x.ok).forEach(x => ALTA.exist.add(x.alias)); }
+      catch (e) { b.disabled = false; b.textContent = 'Crear cuentas'; return toast(e.message); }
+      return altaRender();
+    }
+    if (d.msgAlias) return toast(await copiar(msgAlta(d.msgAlias, d.msgClave)) ? 'Mensaje copiado' : 'No se pudo copiar');
+    if ('altaCopy' in d) return toast(await copiar(ALTA.res.filter(r => r.ok).map(r => msgAlta(r.alias, r.clave)).join('\n\n———\n\n')) ? 'Copiado' : 'No se pudo copiar');
+    if ('altaCsv' in d) return descargar('claves-temporales-' + hoy() + '.csv', '﻿alias;clave_temporal\n' + ALTA.res.filter(r => r.ok).map(r => r.alias + ';' + r.clave).join('\n') + '\n', 'text/csv');
+    if (d.reset) {
+      if (!confirm('¿Generar una clave temporal nueva para ' + d.alias + '? La anterior dejará de valer y tendrá que elegir una nueva al entrar.')) return;
+      b.disabled = true;
+      try { const r = await llamarAdmin({ accion: 'restablecer', alumno_id: d.reset }); $('#reset-out').innerHTML = `<div class="panel" style="margin:0"><div class="kv"><span style="color:var(--fg)">${esc(d.alias)} · <b>${esc(r.clave)}</b></span><button class="btn alt sm" style="width:auto;padding:8px 12px" data-msg-alias="${esc(d.alias)}" data-msg-clave="${esc(r.clave)}">Copiar mensaje</button></div><small class="muted">Solo se muestra ahora.</small></div>`; }
+      catch (e) { toast(e.message); }
+      b.disabled = false; return;
+    }
+    if ('bkExport' in d) {
+      const out = $('#bk-out'); b.disabled = true;
+      try {
+        const perfiles = await q(sb.from('perfil').select('id,alias,rol,activo,debe_cambiar_clave'));
+        const tablas = {}, nota = [];
+        for (const [t, conf] of Object.entries(BK_TABLAS)) {
+          out.textContent = 'Leyendo ' + t + '…'; const rows = [];
+          try { for (let i = 0; ; i += 1000) { let qq = sb.from(t).select('*'); conf.split(',').forEach(c => { qq = qq.order(c); }); const r = await q(qq.range(i, i + 999)); rows.push(...r); if (r.length < 1000) break; } tablas[t] = rows; }
+          catch (e) { nota.push(t); }
+        }
+        const n = Object.values(tablas).reduce((x, r) => x + r.length, 0);
+        descargar('kokorosd-copia-' + hoy() + '.json', JSON.stringify({ version: 1, creado: new Date().toISOString(), perfiles, tablas }), 'application/json');
+        out.textContent = 'Copia descargada: ' + n + ' filas de ' + perfiles.length + ' perfiles.' + (nota.length ? ' Sin leer (¿tabla sin crear?): ' + nota.join(', ') + '.' : '');
+      } catch (e) { console.warn(e); out.textContent = 'No se pudo crear la copia.'; }
+      b.disabled = false; return;
+    }
+    if ('bkImport' in d) return $('#bk-file').click();
     if (d.baja) {
       const r = await sb.from('perfil').update({ activo: d.act !== '1' }).eq('id', d.baja);
       if (r.error) return toast('No se pudo guardar.'); return renderAlumno(d.baja);
