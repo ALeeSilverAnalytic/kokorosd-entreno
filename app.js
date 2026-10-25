@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v15';
+const VERSION = 'v16';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
@@ -49,7 +49,14 @@ function imgSrc(e, i) { const p = e && e.imagenes && e.imagenes[i]; return p ? I
 window.imgFail = el => { if (el.dataset.f) return; el.dataset.f = 1; el.src = el.src.replace(IMG[0], IMG[1]); };
 const imgTag = (e, i, cls, alt) => `<img ${cls ? `class="${cls}"` : ''} alt="${esc(alt || '')}" src="${imgSrc(e, i)}" onerror="imgFail(this)">`;
 const OKHOST = /^https:\/\/(www\.)?(youtube\.com|youtu\.be|drive\.google\.com)\//;
-const rich = t => esc(t).replace(/\[([^\]]+)\]\((https:[^)\s]+)\)/g, (m, l, u) => OKHOST.test(u.replace(/&amp;/g, '&')) ? `<a class="vl" href="${u}" target="_blank" rel="noopener noreferrer">${IC.play2}${l}</a>` : m);
+const rich = t => esc(t).replace(/\[([^\]]+)\]\((https:[^)\s]+|clips\/[A-Za-z0-9._-]+\.mp4)\)/g, (m, l, u) => /^clips\//.test(u) ? `<a class="vl" href="${u}" data-clip="${u}">${IC.play2}${l}</a>` : OKHOST.test(u.replace(/&amp;/g, '&')) ? `<a class="vl" href="${u}" target="_blank" rel="noopener noreferrer">${IC.play2}${l}</a>` : m);
+/* reproductor de clips propios (alojados en la app) */
+function cierraClip() { const m = document.getElementById('vmodal'); if (m) m.remove(); }
+function abreClip(src, titulo) {
+  cierraClip(); const m = document.createElement('div'); m.className = 'vmodal'; m.id = 'vmodal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-label', titulo || 'Clip');
+  m.innerHTML = `<div class="vbox"><video src="${esc(src)}" controls playsinline autoplay loop muted preload="auto"></video><div class="vbar"><button data-vrate="1" class="on">1×</button><button data-vrate="0.5">½×</button><button data-vrate="0.25">¼×</button><button data-vclose>Cerrar</button></div></div>`;
+  document.body.appendChild(m); m.querySelector('[data-vclose]').focus();
+}
 const q = async p => { const r = await p; if (r.error) throw r.error; return r.data || []; };
 const isNet = e => !e || e.status === 0 || /fetch|network|failed|timeout/i.test(e.message || '') || e.status === 401 || e.code === 'PGRST301';
 
@@ -649,6 +656,7 @@ async function sincronizar(log) {
         if (r.error) throw new Error(op.t + ': ' + r.error.message);
         log(`${f} · ${op.t}: ${Math.min(i + 200, rows.length)} de ${rows.length}`);
       }
+      if (op.t === 'programa') progs = {};          // programas nuevos: se vuelven a leer antes de resolver los niveles
     }
   }
 }
@@ -710,6 +718,7 @@ document.addEventListener('change', async ev => {
     }
   } catch (e) { console.warn(e); toast('No se pudo guardar.'); }
 });
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') cierraClip(); });
 document.addEventListener('keydown', ev => { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('[data-tec]')) { ev.preventDefault(); ev.target.click(); } });
 document.addEventListener('focusout', async ev => {
   const ta = ev.target; if (!ta.dataset || !ta.dataset.notatxt) return;
@@ -720,10 +729,14 @@ document.addEventListener('focusout', async ev => {
   await enqueue(txt ? { k: 'ups', t: 'nota_tecnica', conf: 'alumno_id,tecnica_id', row: { alumno_id: S.user.id, tecnica_id: id, texto: txt, actualizado: new Date().toISOString() } } : { k: 'del', t: 'nota_tecnica', m: { alumno_id: S.user.id, tecnica_id: id } });
 });
 document.addEventListener('click', async ev => {
+  const ca = ev.target.closest('a[data-clip]'); if (ca) { ev.preventDefault(); return abreClip(ca.dataset.clip, ca.textContent); }
+  if (ev.target.id === 'vmodal') return cierraClip();
   if (ev.target.closest('a')) return;
   const b = ev.target.closest('button, [data-tec]'); if (!b) return;
   const d = b.dataset;
   try {
+    if (d.vrate) { const v = document.querySelector('#vmodal video'); if (v) v.playbackRate = +d.vrate; document.querySelectorAll('[data-vrate]').forEach(x => x.classList.toggle('on', x === b)); return; }
+    if ('vclose' in d) return cierraClip();
     if (d.tab) return go(d.tab);
     if ('reload' in d) return afterLogin(S.user);
     if ('logout' in d) return logout();

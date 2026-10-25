@@ -1,1 +1,9 @@
-{"version": 1, "files": ["yawara.json", "kokorosd.json", "info.json"]}
+{
+ "version": 1,
+ "files": [
+  "yawara.json",
+  "kokorosd.json",
+  "info.json",
+  "boxeo.json"
+ ]
+}

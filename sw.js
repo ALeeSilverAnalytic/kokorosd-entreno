@@ -1,5 +1,5 @@
 // Service worker: la app funciona sin conexión (carcasa y fotos). Los datos de Supabase NUNCA se guardan aquí.
-const C = 'kokorosd-v15';
+const C = 'kokorosd-v16';
 const CORE = ['./', 'index.html', 'app.css', 'app.js', 'vendor/supabase.js', 'manifest.webmanifest',
               'icon-192.png', 'img/logo-white.png', 'img/logo-red.png'];
 const IMG_HOSTS = ['cdn.jsdelivr.net', 'raw.githubusercontent.com'];
@@ -14,6 +14,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const r = e.request;
   if (r.method !== 'GET') return;
+  if (r.destination === 'video' || r.headers.has('range')) return;   // los clips los gestiona el navegador (rangos)
   const u = new URL(r.url);
   const mine = u.origin === location.origin;
   const img = IMG_HOSTS.includes(u.hostname);

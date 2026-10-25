@@ -39,6 +39,7 @@
     <p class="mut">Arrastra con el dedo un rectángulo alrededor de <b>una</b> persona, de pies a cabeza.</p>
     <div class="row">
       <select id="calidad"><option value="1" selected>Calidad: normal</option><option value="0">Calidad: rápida</option></select>
+      <select id="tasa"><option value="30">30 fotogramas/s</option><option value="20" selected>20 fotogramas/s</option><option value="10">10 fotogramas/s</option></select>
       <button class="main" id="go">Analizar</button>
     </div>
     <progress id="prog" value="0" max="1" hidden></progress>
@@ -126,7 +127,7 @@ $('#go').addEventListener('click', async () => {
     pose.setOptions({ modelComplexity: +$('#calidad').value, smoothLandmarks: false, enableSegmentation: false, minDetectionConfidence: .4, minTrackingConfidence: .4 });
     let last = null; pose.onResults(r => { last = r; });
     await pose.initialize();
-    const fps = 30, n = Math.max(2, Math.floor(dur * fps)), cv = document.createElement('canvas'), k = Math.min(1, 640 / Math.max(region.w, region.h));
+    const fps = +$('#tasa').value, n = Math.max(2, Math.floor(dur * fps)), cv = document.createElement('canvas'), k = Math.min(1, 640 / Math.max(region.w, region.h));
     cv.width = Math.round(region.w * k); cv.height = Math.round(region.h * k); const cx = cv.getContext('2d');
     const F = new Float32Array(n * 99).fill(NaN), P = new Float32Array(n * 4).fill(NaN); let ok = 0, ult = -1;
     for (let i = 0; i < n; i++) {

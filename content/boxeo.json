@@ -1,0 +1,171 @@
+{
+ "ops": [
+  {
+   "t": "programa",
+   "k": "slug",
+   "rows": [
+    {
+     "slug": "boxeo",
+     "nombre": "Boxeo",
+     "descripcion": "Programa técnico de boxeo",
+     "orden": 5
+    }
+   ]
+  },
+  {
+   "t": "nivel",
+   "k": "id",
+   "rows": [
+    {
+     "id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
+     "programa_slug": "boxeo",
+     "codigo": "boxeo",
+     "nombre": "Programa de boxeo",
+     "orden": 1,
+     "detalle": {}
+    }
+   ]
+  },
+  {
+   "t": "tecnica",
+   "k": "id",
+   "rows": [
+    {
+     "id": "07601979-f22f-5f88-805d-8e2239ef92ff",
+     "nivel_id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
+     "seccion": "a) Golpes simples",
+     "codigo": "a1",
+     "titulo": "Jab",
+     "descripcion": null,
+     "orden": 1
+    },
+    {
+     "id": "447c26ab-0d71-5f98-8cb3-a3618b74016b",
+     "nivel_id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
+     "seccion": "a) Golpes simples",
+     "codigo": "a2",
+     "titulo": "Cross",
+     "descripcion": null,
+     "orden": 2
+    },
+    {
+     "id": "68a3bd6b-16b5-5d01-b22d-42f18f46d8c0",
+     "nivel_id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
+     "seccion": "a) Golpes simples",
+     "codigo": "a3",
+     "titulo": "Crochet",
+     "descripcion": null,
+     "orden": 3
+    },
+    {
+     "id": "b2968f35-2494-538a-9d2d-72fe3b8b6451",
+     "nivel_id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
+     "seccion": "a) Golpes simples",
+     "codigo": "a4",
+     "titulo": "Uppercut",
+     "descripcion": null,
+     "orden": 4
+    },
+    {
+     "id": "2872a6c8-bea7-5621-ab12-8dfc41a8dc8e",
+     "nivel_id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
+     "seccion": "a) Golpes simples",
+     "codigo": "a5",
+     "titulo": "Hook",
+     "descripcion": null,
+     "orden": 5
+    },
+    {
+     "id": "41ed9441-b21a-5907-9320-7827d8881153",
+     "nivel_id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
+     "seccion": "a) Golpes simples",
+     "codigo": "a6",
+     "titulo": "Media bolea",
+     "descripcion": null,
+     "orden": 6
+    },
+    {
+     "id": "07df1721-e62b-5658-afdc-e176678276b4",
+     "nivel_id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
+     "seccion": "a) Golpes simples",
+     "codigo": "a7",
+     "titulo": "Uppercut oblicuo",
+     "descripcion": null,
+     "orden": 7
+    },
+    {
+     "id": "715affd1-1cc2-52d6-985c-89fc94959591",
+     "nivel_id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
+     "seccion": "b) Esquivas",
+     "codigo": "b1",
+     "titulo": "Circular",
+     "descripcion": null,
+     "orden": 8
+    },
+    {
+     "id": "36562bfe-5f9a-5a0c-bf81-b543edd93644",
+     "nivel_id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
+     "seccion": "b) Esquivas",
+     "codigo": "b2",
+     "titulo": "Lateral",
+     "descripcion": null,
+     "orden": 9
+    },
+    {
+     "id": "e4fc9e39-947f-5486-8ab7-7a7a19a5e02e",
+     "nivel_id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
+     "seccion": "b) Esquivas",
+     "codigo": "b3",
+     "titulo": "Muelle",
+     "descripcion": null,
+     "orden": 10
+    },
+    {
+     "id": "34bc557b-3282-5084-a156-194373d356c4",
+     "nivel_id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
+     "seccion": "b) Esquivas",
+     "codigo": "b4",
+     "titulo": "Combo 1 esquivas [Ver clip](clips/b4-combo-esquivas.mp4)",
+     "descripcion": null,
+     "orden": 11
+    },
+    {
+     "id": "9e0bc060-5a9f-56e5-a2bd-46ece7f55ece",
+     "nivel_id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
+     "seccion": "c) Footwork",
+     "codigo": "c1",
+     "titulo": "Micropaso adelante",
+     "descripcion": null,
+     "orden": 12
+    },
+    {
+     "id": "2d95f4c1-f5aa-5b7a-9886-908ba51ce9bf",
+     "nivel_id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
+     "seccion": "c) Footwork",
+     "codigo": "c2",
+     "titulo": "Micropaso atrás",
+     "descripcion": null,
+     "orden": 13
+    },
+    {
+     "id": "3fc7c125-77a9-53a9-8c12-a90d939b0848",
+     "nivel_id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
+     "seccion": "c) Footwork",
+     "codigo": "c3",
+     "titulo": "Giros a 45",
+     "descripcion": null,
+     "orden": 14
+    },
+    {
+     "id": "4f9e4b5e-4e16-5e5f-a0fb-fed7dea05807",
+     "nivel_id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
+     "seccion": "d) Combos",
+     "codigo": "d1",
+     "titulo": "Triedro: jab, uppercut, crochet izquierdo – cross, uppercut, crochet derecho",
+     "descripcion": null,
+     "orden": 15
+    }
+   ]
+  }
+ ]
+}
