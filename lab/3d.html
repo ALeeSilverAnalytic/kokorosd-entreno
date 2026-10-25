@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Laboratorio 3D · prueba</title>
+<style>
+  :root{--bg:#0e0d12;--panel:#1a1922;--line:#2c2a38;--fg:#ecebf0;--mut:#a09fad;--acc:#e5503a;--az:#3ca0ff;--na:#ff8c28}
+  *{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 system-ui,sans-serif}
+  main{max-width:640px;margin:0 auto;padding:16px 16px 60px}
+  h1{font-size:22px;margin:0 0 4px} h2{font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:0 0 8px}
+  p{margin:6px 0} .mut{color:var(--mut);font-size:14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin:14px 0}
+  button,select,input[type=file]::file-selector-button{font:inherit;color:var(--fg);background:#2a2935;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+  button.main{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+  button[disabled]{opacity:.5} button.on{outline:2px solid var(--acc)}
+  .row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;align-items:center}
+  canvas{width:100%;display:block;border-radius:10px;background:#000;touch-action:none}
+  #prog{width:100%;height:8px;accent-color:var(--acc)} input[type=range]{width:100%;accent-color:var(--acc)}
+  .note{border-left:3px solid var(--acc);padding-left:10px}
+  #msg{min-height:1.4em}
+</style>
+</head>
+<body>
+<main>
+  <h1>Laboratorio 3D</h1>
+  <p class="mut note">Prueba aparte de la app. El vídeo se analiza <b>en tu móvil</b>: no se sube a ningún sitio. Solo se guarda el movimiento si tú lo descargas.</p>
+
+  <div class="panel" id="p1">
+    <h2>1 · Vídeo</h2>
+    <input type="file" id="file" accept="video/*">
+    <p class="mut">Mejor un clip corto (5–10 s) con una persona en el encuadre. Si salen dos, en el paso 2 encierra solo a una.</p>
+  </div>
+
+  <div class="panel" id="p2" hidden>
+    <h2>2 · Elige a la persona</h2>
+    <canvas id="sel"></canvas>
+    <p class="mut">Arrastra con el dedo un rectángulo alrededor de <b>una</b> persona, de pies a cabeza.</p>
+    <div class="row">
+      <select id="calidad"><option value="1" selected>Calidad: normal</option><option value="0">Calidad: rápida</option></select>
+      <button class="main" id="go">Analizar</button>
+    </div>
+    <progress id="prog" value="0" max="1" hidden></progress>
+    <div id="msg" class="mut"></div>
+  </div>
+
+  <div class="panel" id="p3" hidden>
+    <h2>3 · Muñeco 3D</h2>
+    <canvas id="c3" width="720" height="720" style="aspect-ratio:1/1"></canvas>
+    <div class="row" id="vistas">
+      <button data-v="frente">Frente</button><button data-v="lado">Lado</button><button data-v="detras">Detrás</button><button data-v="arriba">Arriba</button><button data-v="libre" class="on">Libre</button>
+    </div>
+    <div class="row">
+      <button id="play" class="main">Pausa</button>
+      <select id="vel"><option value="1">1×</option><option value="0.5" selected>½×</option><option value="0.25">¼×</option></select>
+      <label class="mut"><input type="checkbox" id="sigue" checked> seguir desplazamiento</label>
+    </div>
+    <input type="range" id="slider" min="0" max="0" value="0">
+    <h2 style="margin-top:14px">Cintura: giro de cadera y hombros (visto desde arriba)</h2>
+    <canvas id="cen" width="720" height="300" style="aspect-ratio:12/5"></canvas>
+    <p class="mut" id="sep"></p>
+    <div class="row">
+      <button id="save">Guardar movimiento</button>
+      <button id="rec">Grabar vídeo del muñeco</button>
+      <label class="mut">Cargar movimiento: <input type="file" id="load" accept=".json,application/json"></label>
+    </div>
+    <p class="mut" id="info"></p>
+  </div>
+</main>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"}}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const $ = s => document.querySelector(s);
+const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/';
+const msg = t => { $('#msg').textContent = t; };
+
+/* ───────── estado ───────── */
+let video = null, vw = 0, vh = 0, dur = 0;
+let region = null;                 // {x,y,w,h} en píxeles del vídeo
+let M = null;                      // {fps, n, f: Float32Array n*33*3 (mundo), p: Float32Array n*2 (cadera 2D en m)}
+let t0 = 0, playing = true, frame = 0, speed = 0.5, cur = 0;
+
+/* ───────── 1 · elegir vídeo ───────── */
+$('#file').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  if (video) URL.revokeObjectURL(video.src);
+  video = document.createElement('video'); video.muted = true; video.playsInline = true; video.preload = 'auto';
+  video.src = URL.createObjectURL(f);
+  await new Promise((ok, ko) => { video.onloadeddata = ok; video.onerror = () => ko(); }).catch(() => { alert('Este navegador no puede leer ese vídeo.'); video = null; });
+  if (!video) return;
+  vw = video.videoWidth; vh = video.videoHeight; dur = video.duration;
+  $('#p2').hidden = false; region = { x: 0, y: 0, w: vw, h: vh };
+  await seek(Math.min(0.5, dur / 2)); dibujaSel(); msg(`Vídeo de ${dur.toFixed(1)} s (${vw}×${vh}).`);
+});
+const seek = t => new Promise(ok => { const h = () => { video.removeEventListener('seeked', h); ok(); }; video.addEventListener('seeked', h); video.currentTime = Math.min(t, dur - 0.001); });
+
+/* selección con el dedo */
+const sel = $('#sel'), sx = sel.getContext('2d');
+function dibujaSel() {
+  const k = Math.min(1, 720 / Math.max(vw, vh)); sel.width = Math.round(vw * k); sel.height = Math.round(vh * k);
+  sel.style.aspectRatio = vw + '/' + vh; sel.style.maxHeight = '70vh'; sel.style.width = 'auto'; sel.style.margin = '0 auto';
+  sx.drawImage(video, 0, 0, sel.width, sel.height);
+  sx.fillStyle = 'rgba(0,0,0,.45)'; sx.fillRect(0, 0, sel.width, sel.height);
+  const r = { x: region.x * sel.width / vw, y: region.y * sel.height / vh, w: region.w * sel.width / vw, h: region.h * sel.height / vh };
+  sx.drawImage(video, region.x, region.y, region.w, region.h, r.x, r.y, r.w, r.h);
+  sx.strokeStyle = '#e5503a'; sx.lineWidth = 4; sx.strokeRect(r.x, r.y, r.w, r.h);
+}
+let drag = null;
+const pos = e => { const b = sel.getBoundingClientRect(); return [Math.max(0, Math.min(vw, (e.clientX - b.left) / b.width * vw)), Math.max(0, Math.min(vh, (e.clientY - b.top) / b.height * vh))]; };
+sel.addEventListener('pointerdown', e => { drag = pos(e); sel.setPointerCapture(e.pointerId); });
+sel.addEventListener('pointermove', e => { if (!drag) return; const [x, y] = pos(e); region = { x: Math.min(drag[0], x), y: Math.min(drag[1], y), w: Math.max(8, Math.abs(x - drag[0])), h: Math.max(8, Math.abs(y - drag[1])) }; dibujaSel(); });
+sel.addEventListener('pointerup', () => { drag = null; });
+
+/* ───────── 2 · detectar en 3D ───────── */
+$('#go').addEventListener('click', async () => {
+  const b = $('#go'); b.disabled = true; $('#prog').hidden = false; msg('Cargando el detector (la primera vez baja unos 10 MB)…');
+  try {
+    const pose = new Pose({ locateFile: f => MP + f });
+    pose.setOptions({ modelComplexity: +$('#calidad').value, smoothLandmarks: false, enableSegmentation: false, minDetectionConfidence: .4, minTrackingConfidence: .4 });
+    let last = null; pose.onResults(r => { last = r; });
+    await pose.initialize();
+    const fps = 30, n = Math.max(2, Math.floor(dur * fps)), cv = document.createElement('canvas'), k = Math.min(1, 640 / Math.max(region.w, region.h));
+    cv.width = Math.round(region.w * k); cv.height = Math.round(region.h * k); const cx = cv.getContext('2d');
+    const F = new Float32Array(n * 99).fill(NaN), P = new Float32Array(n * 4).fill(NaN); let ok = 0, ult = -1;
+    for (let i = 0; i < n; i++) {
+      await seek(i / fps); cx.drawImage(video, region.x, region.y, region.w, region.h, 0, 0, cv.width, cv.height);
+      last = null; await pose.send({ image: cv });
+      if (last && last.poseWorldLandmarks && last.poseLandmarks) {
+        last.poseWorldLandmarks.forEach((l, j) => { F[i * 99 + j * 3] = l.x; F[i * 99 + j * 3 + 1] = l.y; F[i * 99 + j * 3 + 2] = l.z; });
+        const L = last.poseLandmarks, hx = (L[23].x + L[24].x) / 2 * region.w, hy = (L[23].y + L[24].y) / 2 * region.h;
+        const tx = ((L[11].x + L[12].x) / 2 - (L[23].x + L[24].x) / 2) * region.w, ty = ((L[11].y + L[12].y) / 2 - (L[23].y + L[24].y) / 2) * region.h;
+        P[i * 4] = hx; P[i * 4 + 1] = hy; P[i * 4 + 2] = Math.hypot(tx, ty); ok++; ult = i;
+      }
+      $('#prog').value = (i + 1) / n; if (i % 5 === 0) msg(`Analizando fotograma ${i + 1} de ${n}…`);
+    }
+    if (ok < n * .3) { msg(`Solo se detectó a la persona en ${ok} de ${n} fotogramas. Prueba a encuadrar mejor.`); b.disabled = false; return; }
+    M = procesa(F, P, n, fps, ok); muestra(`Detectada en ${ok} de ${n} fotogramas.`);
+  } catch (err) { console.error(err); msg('No se pudo analizar: ' + (err && err.message ? err.message : err)); }
+  b.disabled = false; $('#prog').hidden = true;
+});
+
+/* rellena huecos, suaviza (One Euro) y convierte la posición de la cadera a metros */
+function procesa(F, P, n, fps, ok) {
+  const fill = (A, stride) => { for (let c = 0; c < stride; c++) { let prev = -1; for (let i = 0; i < n; i++) { if (!isNaN(A[i * stride + c])) { if (prev >= 0 && i - prev > 1) for (let q = prev + 1; q < i; q++) A[q * stride + c] = A[prev * stride + c] + (A[i * stride + c] - A[prev * stride + c]) * (q - prev) / (i - prev); else if (prev < 0) for (let q = 0; q < i; q++) A[q * stride + c] = A[i * stride + c]; prev = i; } } for (let q = prev + 1; q < n; q++) A[q * stride + c] = A[prev * stride + c]; } };
+  fill(F, 99); fill(P, 4);
+  const dt = 1 / fps, al = c => 1 / (1 + 1 / (2 * Math.PI * c) / dt);
+  const euro = (A, stride, minC = 1.6, beta = .12) => { for (let c = 0; c < stride; c++) { let x = A[c], dx = 0; for (let i = 1; i < n; i++) { const v = A[i * stride + c], d = (v - x) / dt; dx += al(1) * (d - dx); const cut = minC + beta * Math.abs(dx); x += al(cut) * (v - x); A[i * stride + c] = x; } } };
+  euro(F, 99); euro(P, 4, 1.2, .02);
+  // metros por píxel: tronco en metros (mundo) / tronco en píxeles (2D), mediana
+  const rs = []; for (let i = 0; i < n; i++) { const o = i * 99, tw = Math.hypot((F[o + 33] + F[o + 36]) / 2 - (F[o + 69] + F[o + 72]) / 2, (F[o + 34] + F[o + 37]) / 2 - (F[o + 70] + F[o + 73]) / 2, (F[o + 35] + F[o + 38]) / 2 - (F[o + 71] + F[o + 74]) / 2); if (P[i * 4 + 2] > 5) rs.push(tw / P[i * 4 + 2]); }
+  rs.sort((a, b) => a - b); const mpp = rs.length ? rs[rs.length >> 1] : 0.003;
+  const hx = []; for (let i = 0; i < n; i++) hx.push(P[i * 4]); const hm = hx.slice().sort((a, b) => a - b)[n >> 1];
+  const pos = new Float32Array(n); for (let i = 0; i < n; i++) pos[i] = (P[i * 4] - hm) * mpp;
+  // suelo: percentil 95 de la parte más baja de los pies (y hacia abajo en MediaPipe)
+  const lows = []; for (let i = 0; i < n; i++) { let m = -9; for (const j of [27, 28, 29, 30, 31, 32]) m = Math.max(m, F[i * 99 + j * 3 + 1]); lows.push(m); }
+  lows.sort((a, b) => a - b); const floor = lows[Math.floor(n * .9)];
+  return { fps, n, f: F, pos, floor, ok };
+}
+
+/* ───────── 3 · visor ───────── */
+const cv3 = $('#c3'), ren = new THREE.WebGLRenderer({ canvas: cv3, antialias: true, preserveDrawingBuffer: true });
+ren.setPixelRatio(1); ren.setSize(720, 720, false);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a0a10); scene.fog = new THREE.Fog(0x0a0a10, 6, 14);
+const cam = new THREE.PerspectiveCamera(40, 1, .1, 50), orb = new OrbitControls(cam, cv3); orb.target.set(0, .95, 0); orb.enableDamping = true;
+cam.position.set(2.6, 1.5, 3.2); orb.update();
+scene.add(new THREE.AmbientLight(0xffffff, .55)); const dl = new THREE.DirectionalLight(0xffffff, 1.4); dl.position.set(2, 4, 3); scene.add(dl);
+const grid = new THREE.GridHelper(14, 56, 0xe5503a, 0x6a1f18); scene.add(grid);
+const ring = new THREE.Mesh(new THREE.RingGeometry(.55, .6, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff3b2a })); ring.position.y = .01; scene.add(ring);
+const mat = c => new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: .35, roughness: .5 });
+const MC = { l: mat(0x3ca0ff), r: mat(0xff4a3d), c: mat(0xd9d9e0), h: mat(0xffd23c), cadera: mat(0xff8c28), hombro: mat(0x3cd2ff) };
+const BONES = [[11, 13, 'l'], [13, 15, 'l'], [12, 14, 'r'], [14, 16, 'r'], [23, 25, 'l'], [25, 27, 'l'], [24, 26, 'r'], [26, 28, 'r'], [27, 31, 'l'], [28, 32, 'r']];
+const bones = BONES.map(([a, b, s]) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 14), MC[s]); m.userData = { a, b, rad: .035 }; scene.add(m); return m; });
+const joints = [11, 12, 13, 14, 23, 24, 25, 26, 27, 28].map(j => { const m = new THREE.Mesh(new THREE.SphereGeometry(.045, 14, 10), MC.c); m.userData = { j }; scene.add(m); return m; });
+const barS = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 14), MC.hombro), barH = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 14), MC.cadera); barS.userData = { a: 11, b: 12, rad: .05 }; barH.userData = { a: 23, b: 24, rad: .05 };
+const spine = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 14), MC.c); scene.add(barS, barH, spine);
+const head = new THREE.Mesh(new THREE.SphereGeometry(.11, 20, 14), MC.c), nose = new THREE.Mesh(new THREE.SphereGeometry(.03, 10, 8), MC.h); scene.add(head, nose);
+const glove = [new THREE.Mesh(new THREE.SphereGeometry(.07, 16, 12), MC.h), new THREE.Mesh(new THREE.SphereGeometry(.07, 16, 12), MC.h)]; scene.add(...glove);
+const torso = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0x9aa0b4, transparent: true, opacity: .35, side: THREE.DoubleSide }));
+torso.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(18), 3)); scene.add(torso);
+
+const V = (i, j, s) => { const o = (i * 33 + j) * 3; return new THREE.Vector3(M.f[o], M.f[o + 1], M.f[o + 2]); };
+function pt(i, j) { const v = V(i, j); return new THREE.Vector3(v.x + (M.sigue ? M.pos[i] : 0), M.floor - v.y, -v.z); }   // y hacia arriba, suelo en 0
+const UP = new THREE.Vector3(0, 1, 0);
+function puesto(m, a, b, rad) { const d = b.clone().sub(a), len = d.length() || 1e-4; m.position.copy(a).addScaledVector(d, .5); m.scale.set(rad, len, rad); m.quaternion.setFromUnitVectors(UP, d.normalize()); }
+function pinta(i) {
+  if (!M) return; const P = j => pt(i, j);
+  bones.forEach(m => puesto(m, P(m.userData.a), P(m.userData.b), m.userData.rad));
+  joints.forEach(m => m.position.copy(P(m.userData.j)));
+  puesto(barS, P(11), P(12), .05); puesto(barH, P(23), P(24), .05);
+  const sm = P(11).add(P(12)).multiplyScalar(.5), hm = P(23).add(P(24)).multiplyScalar(.5); puesto(spine, hm, sm, .03);
+  const ear = P(7).add(P(8)).multiplyScalar(.5); head.position.copy(ear); nose.position.copy(P(0));
+  [[15, 19], [16, 20]].forEach(([w, ix], q) => glove[q].position.copy(P(w).add(P(ix)).multiplyScalar(.5)));
+  const a = torso.geometry.attributes.position, T = [P(11), P(12), P(24), P(11), P(24), P(23)]; T.forEach((v, q) => a.setXYZ(q, v.x, v.y, v.z)); a.needsUpdate = true;
+  ring.position.x = hm.x; ring.position.z = hm.z;
+  cur = i; $('#slider').value = i; cenital(i);
+}
+
+/* vista cenital: barras de hombros y cadera + curva de separación */
+const cen = $('#cen'), cc = cen.getContext('2d');
+let ang = null;
+function calculaAng() {
+  const a = (i, l, r) => { const L = V(i, l), R = V(i, r); return Math.atan2(-(R.z - L.z), R.x - L.x); };
+  const wrap = d => { while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
+  ang = { s: [], h: [], d: [] }; for (let i = 0; i < M.n; i++) { const s = a(i, 11, 12), h = a(i, 23, 24); ang.s.push(s); ang.h.push(h); ang.d.push(wrap(s - h) * 180 / Math.PI); }
+}
+function cenital(i) {
+  if (!ang) return; const W = cen.width, H = cen.height; cc.clearRect(0, 0, W, H); cc.fillStyle = '#0a0a10'; cc.fillRect(0, 0, W, H);
+  const cx = 130, cy = H / 2, R = 100; cc.strokeStyle = '#2c2a38'; cc.lineWidth = 2; cc.beginPath(); cc.arc(cx, cy, R + 14, 0, 7); cc.stroke();
+  const barra = (th, col) => { cc.strokeStyle = col; cc.lineWidth = 14; cc.lineCap = 'round'; cc.beginPath(); cc.moveTo(cx - Math.cos(th) * R, cy + Math.sin(th) * R); cc.lineTo(cx + Math.cos(th) * R, cy - Math.sin(th) * R); cc.stroke(); };
+  barra(ang.h[i], '#ff8c28'); barra(ang.s[i], '#3cd2ff');
+  cc.fillStyle = '#a09fad'; cc.font = '20px system-ui'; cc.fillText('Vista desde arriba', 14, 26); cc.fillStyle = '#3cd2ff'; cc.fillText('hombros', 14, H - 34); cc.fillStyle = '#ff8c28'; cc.fillText('cadera', 110, H - 34);
+  const gx = 290, gw = W - gx - 14, gy = 40, gh = H - 80, lim = Math.max(30, ...ang.d.map(Math.abs));
+  cc.strokeStyle = '#2c2a38'; cc.lineWidth = 1; cc.beginPath(); cc.moveTo(gx, gy + gh / 2); cc.lineTo(gx + gw, gy + gh / 2); cc.stroke();
+  cc.strokeStyle = '#ffffff'; cc.lineWidth = 3; cc.beginPath(); ang.d.forEach((d, q) => { const x = gx + q / (M.n - 1) * gw, y = gy + gh / 2 - d / lim * gh / 2; q ? cc.lineTo(x, y) : cc.moveTo(x, y); }); cc.stroke();
+  const px = gx + i / (M.n - 1) * gw; cc.strokeStyle = '#e5503a'; cc.beginPath(); cc.moveTo(px, gy); cc.lineTo(px, gy + gh); cc.stroke();
+  cc.fillStyle = '#a09fad'; cc.fillText('Separación hombros–cadera (°)', gx, 26);
+  $('#sep').textContent = `Ahora: ${Math.abs(ang.d[i]).toFixed(0)}° · máximo en el clip: ${Math.max(...ang.d.map(Math.abs)).toFixed(0)}°. Es una estimación a partir de un solo vídeo: sirve para ver cuándo gira la cintura, no como medida exacta.`;
+}
+
+function muestra(texto) {
+  M.sigue = $('#sigue').checked; calculaAng(); $('#p3').hidden = false; $('#slider').max = M.n - 1; frame = 0; t0 = performance.now(); playing = true; $('#play').textContent = 'Pausa';
+  $('#info').textContent = `${texto} ${M.n} fotogramas a ${M.fps} por segundo.`; pinta(0); $('#p3').scrollIntoView({ behavior: 'smooth' });
+}
+function vista(v) {
+  document.querySelectorAll('#vistas button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  const hm = M ? pt(cur, 23).add(pt(cur, 24)).multiplyScalar(.5) : new THREE.Vector3(0, .9, 0); orb.target.set(hm.x, .95, hm.z);
+  const P = { frente: [0, 1.3, 3.6], lado: [3.6, 1.3, 0], detras: [0, 1.3, -3.6], arriba: [0, 4.6, .01], libre: null }[v];
+  if (P) cam.position.set(hm.x + P[0], P[1], hm.z + P[2]); orb.update();
+}
+document.querySelectorAll('#vistas button').forEach(b => b.addEventListener('click', () => vista(b.dataset.v)));
+$('#play').addEventListener('click', () => { playing = !playing; $('#play').textContent = playing ? 'Pausa' : 'Reanudar'; if (playing) t0 = performance.now() - cur / M.fps / speed * 1000; });
+$('#vel').addEventListener('change', e => { speed = +e.target.value; t0 = performance.now() - cur / M.fps / speed * 1000; });
+$('#slider').addEventListener('input', e => { playing = false; $('#play').textContent = 'Reanudar'; pinta(+e.target.value); });
+$('#sigue').addEventListener('change', e => { if (M) { M.sigue = e.target.checked; pinta(cur); } });
+function bucle(now) {
+  if (M && playing) { const i = Math.floor(((now - t0) / 1000) * speed * M.fps) % M.n; if (i !== cur) pinta(i); }
+  orb.update(); ren.render(scene, cam); requestAnimationFrame(bucle);
+}
+requestAnimationFrame(bucle);
+
+/* guardar / cargar / grabar */
+$('#save').addEventListener('click', () => {
+  const o = { v: 1, fps: M.fps, n: M.n, floor: +M.floor.toFixed(3), pos: Array.from(M.pos, x => +x.toFixed(3)), f: Array.from(M.f, x => +x.toFixed(3)) };
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(o)], { type: 'application/json' })); a.download = 'movimiento-' + new Date().toISOString().slice(0, 10) + '.json'; a.click();
+  $('#info').textContent = `Movimiento guardado (${(JSON.stringify(o).length / 1024).toFixed(0)} KB). No contiene imagen del vídeo.`;
+});
+$('#load').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return; const o = JSON.parse(await f.text());
+  M = { fps: o.fps, n: o.n, f: Float32Array.from(o.f), pos: Float32Array.from(o.pos), floor: o.floor, ok: o.n }; $('#p3').hidden = false; muestra('Movimiento cargado.');
+});
+let mr = null, chunks = [];
+$('#rec').addEventListener('click', () => {
+  if (mr && mr.state === 'recording') { mr.stop(); return; }
+  if (!window.MediaRecorder) return alert('Este navegador no puede grabar.');
+  const st = cv3.captureStream(30); mr = new MediaRecorder(st, { mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm' }); chunks = [];
+  mr.ondataavailable = e => chunks.push(e.data); mr.onstop = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' })); a.download = 'munheco.webm'; a.click(); $('#rec').textContent = 'Grabar vídeo del muñeco'; };
+  mr.start(); $('#rec').textContent = 'Parar y guardar'; frame = 0; t0 = performance.now(); playing = true;
+});
+
+/* ganchos para pruebas automáticas */
+window.__lab = { get M() { return M; }, pinta, vista, pausa() { playing = false; }, render() { orb.update(); ren.render(scene, cam); }, setRegion(r) { region = r; }, ready: true };
+</script>
+</body>
+</html>
