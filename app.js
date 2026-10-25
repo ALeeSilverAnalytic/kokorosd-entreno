@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v16';
+const VERSION = 'v17';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
@@ -398,7 +398,8 @@ const avisosPanel = avs => avs === null ? '' : `<div class="panel"><h2 style="ma
   <button class="btn sm" data-avnuevo>Publicar aviso</button>
   ${avs.map(a => `<div class="kv" style="margin-top:8px"><span style="color:var(--fg)">${esc(a.titulo)}</span><button class="btn alt sm" data-avdel="${a.id}">Quitar</button></div>`).join('')}</div>`;
 /* ───────── altas, claves y copia de seguridad (solo maestro) ───────── */
-const BK_TABLAS = { asignacion: 'alumno_id,rutina_id', recomendado: 'alumno_id,bloque_item_id', sustitucion: 'alumno_id,bloque_item_id', serie_registro: 'id', marca_hecho: 'alumno_id,bloque_item_id,fecha', progreso_tecnica: 'alumno_id,tecnica_id', validacion_tecnica: 'alumno_id,tecnica_id', grado_alumno: 'alumno_id,nivel_id', nota_tecnica: 'alumno_id,tecnica_id', entrega_regla: 'alumno_id,numero', cuota_pendiente: 'alumno_id,anio,trimestre', impreso_socio: 'alumno_id', aviso: 'id' };
+const GRADOS_TXT = { silat: ['Principiante', 'Iniciado', 'Veterano'], boxeo: ['Principiante', 'Iniciado', 'Veterano'] };
+const BK_TABLAS = { grado_texto: 'alumno_id,programa_id', asignacion: 'alumno_id,rutina_id', recomendado: 'alumno_id,bloque_item_id', sustitucion: 'alumno_id,bloque_item_id', serie_registro: 'id', marca_hecho: 'alumno_id,bloque_item_id,fecha', progreso_tecnica: 'alumno_id,tecnica_id', validacion_tecnica: 'alumno_id,tecnica_id', grado_alumno: 'alumno_id,nivel_id', nota_tecnica: 'alumno_id,tecnica_id', entrega_regla: 'alumno_id,numero', cuota_pendiente: 'alumno_id,anio,trimestre', impreso_socio: 'alumno_id', aviso: 'id' };
 const ALTA = { prev: [], res: [], exist: new Set() };
 const normAlias = t => String(t || '').split(/[\t;,]/)[0].split('@')[0].normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9._-]/g, '');
 const aliasOk = a => /^[a-z0-9][a-z0-9._-]{2,29}$/.test(a);
@@ -460,10 +461,15 @@ async function renderAlumnos() {
   ALTA.exist = new Set(al.map(a => a.alias)); ALTA.prev = []; ALTA.res = [];
   view.innerHTML = `<h1>Alumnos</h1>` + `<div class="panel"><h2 style="margin-bottom:6px">Contenido</h2><p class="muted" style="margin:0 0 10px">Carga o actualiza programas y ejercicios publicados en el repositorio. Se puede repetir sin duplicar nada.</p><button class="btn sm" data-sync>Sincronizar contenido</button><div id="syncout" class="muted" style="margin-top:10px"></div></div>` + altaPanel() + copiaPanel() + avisosPanel(avs) + (al.length ? al.map(a => `<button class="stu" data-alumno="${a.id}"><span class="tx"><b>${esc(a.alias)}</b>${!a.activo ? '<span class="badge">Baja</span>' : ''}${a.debe_cambiar_clave ? '<span class="badge">Clave temporal</span>' : ''}<span class="s">${last[a.id] ? 'Último registro: ' + dateEs(last[a.id]) : 'Sin registros'}</span></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`).join('') : '<div class="panel"><p class="muted" style="margin:0">Aún no hay alumnos. Añádelos con el cuadro "Añadir alumnos".</p></div>');
 }
-function escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp) {
+function escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp, gtx) {
   const yr = new Date().getFullYear();
   let h = `<h2 style="margin:18px 0 8px">Grados</h2><div class="panel" style="margin:0">`;
   progs.filter(p => p.slug !== 'fisico').forEach(p => {
+    if (GRADOS_TXT[p.slug]) {
+      const cu = ((gtx || []).find(g => g.programa_id === p.id) || {}).grado || '';
+      h += `<div class="kv"><span>${esc(p.nombre)}</span><select class="sel" data-gtxt="${p.id}" data-al="${id}" aria-label="Grado en ${esc(p.nombre)}"><option value="">Sin asignar</option>${GRADOS_TXT[p.slug].map(n => `<option value="${esc(n)}"${n === cu ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>`;
+      return;
+    }
     const ns = nivs.filter(n => n.programa_id === p.id), cur = (grs.find(g => ns.some(n => n.id === g.nivel_id)) || {}).nivel_id || '';
     h += `<div class="kv"><span>${esc(p.nombre)}</span>${ns.length ? `<select class="sel" data-grado="${p.id}" data-al="${id}" aria-label="Grado en ${esc(p.nombre)}"><option value="">Sin asignar</option>${ns.map(n => `<option value="${n.id}"${n.id === cur ? ' selected' : ''}>${esc(n.nombre)}</option>`).join('')}</select>` : '<b>—</b>'}</div>`;
   });
@@ -483,7 +489,7 @@ function escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp) {
 }
 async function renderAlumno(id) {
   view.innerHTML = '<div class="loading">Cargando…</div>';
-  const [perfil, asg, rec, ser, regla, cuotas, grs, progs, nivs, imp] = await Promise.all([
+  const [perfil, asg, rec, ser, regla, cuotas, grs, progs, nivs, imp, gtx] = await Promise.all([
     q(sb.from('perfil').select('*').eq('id', id)),
     q(sb.from('asignacion').select('*').eq('alumno_id', id)),
     q(sb.from('recomendado').select('*').eq('alumno_id', id)),
@@ -493,7 +499,8 @@ async function renderAlumno(id) {
     q(sb.from('grado_alumno').select('*').eq('alumno_id', id)).catch(() => []),
     q(sb.from('programa').select('*').order('orden')).catch(() => []),
     q(sb.from('nivel').select('id,programa_id,nombre,orden').order('orden')).catch(() => []),
-    q(sb.from('impreso_socio').select('fecha_recibido').eq('alumno_id', id)).catch(() => null)
+    q(sb.from('impreso_socio').select('fecha_recibido').eq('alumno_id', id)).catch(() => null),
+    q(sb.from('grado_texto').select('*').eq('alumno_id', id)).catch(() => [])
   ]);
   const a = perfil[0]; if (!a) return go('alumnos');
   const faltan = [...new Set(ser.map(s => s.ejercicio_id))].filter(x => !S.ex[x]);
@@ -515,7 +522,7 @@ async function renderAlumno(id) {
       });
     }));
   }
-  h += escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp);
+  h += escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp, gtx);
   h += `<h2 style="margin:18px 0 8px">Actividad reciente</h2>`;
   if (!ser.length) h += '<p class="muted">Sin registros todavía.</p>';
   else {
@@ -537,7 +544,7 @@ async function renderAlumno(id) {
 }
 
 /* ───────── inicio y programas técnicos ───────── */
-const P = { cargado: false, progs: [], nivs: [], tecs: [], mio: {}, val: {}, regSel: 0, grados: {}, notas: {}, avisos: [], infos: [], regla: {}, cuotas: [], impreso: null };
+const P = { cargado: false, progs: [], nivs: [], tecs: [], mio: {}, val: {}, regSel: 0, grados: {}, gtxt: {}, notas: {}, avisos: [], infos: [], regla: {}, cuotas: [], impreso: null };
 async function cargarProgramas() {
   const uid = S.user.id;
   const [progs, nivs, tecs, mio, val, gr, notas] = await Promise.all([
@@ -546,12 +553,14 @@ async function cargarProgramas() {
     q(sb.from('progreso_tecnica').select('*').eq('alumno_id', uid)), q(sb.from('validacion_tecnica').select('*').eq('alumno_id', uid)),
     q(sb.from('grado_alumno').select('*').eq('alumno_id', uid).order('fecha')),
     q(sb.from('nota_tecnica').select('tecnica_id,texto').eq('alumno_id', uid)).catch(() => [])]);
-  const [avisos, infos, regla, cuotas, imp] = await Promise.all([
+  const [avisos, infos, regla, cuotas, imp, gtx] = await Promise.all([
     q(sb.from('aviso').select('*').eq('activo', true).order('creado', { ascending: false }).limit(5)).catch(() => []),
     q(sb.from('info_pagina').select('slug,titulo,orden').order('orden')).catch(() => []),
     q(sb.from('entrega_regla').select('*').eq('alumno_id', uid)).catch(() => []),
     q(sb.from('cuota_pendiente').select('*').eq('alumno_id', uid).order('anio').order('trimestre')).catch(() => []),
-    q(sb.from('impreso_socio').select('fecha_recibido').eq('alumno_id', uid)).catch(() => [])]);
+    q(sb.from('impreso_socio').select('fecha_recibido').eq('alumno_id', uid)).catch(() => []),
+    q(sb.from('grado_texto').select('*').eq('alumno_id', uid)).catch(() => [])]);
+  P.gtxt = Object.fromEntries(gtx.map(g => [g.programa_id, g.grado]));
   P.impreso = imp[0] ? imp[0].fecha_recibido : null;
   P.avisos = avisos; P.infos = infos; P.cuotas = cuotas; P.regla = Object.fromEntries(regla.map(r => [r.numero, r]));
   P.notas = Object.fromEntries(notas.map(n => [n.tecnica_id, n.texto]));
@@ -565,7 +574,8 @@ const nDom = list => list.filter(t => P.val[t.id] || P.mio[t.id] === 'dominada')
 const md = t => String(t || '').split('\n').filter(l => l.trim()).map(l => `<p${/^[a-d]\) /.test(l) ? ' class="ind"' : ''}>${esc(l).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</p>`).join('');
 const cuotaTxt = list => list.map(c => `${c.anio} · ${TRIM[c.trimestre - 1]} trim.`).join(', ');
 function escuelaCard() {
-  const gr = P.progs.map(p => { const ns = P.nivs.filter(n => n.programa_id === p.id); return `<div class="kv"><span>${esc(p.nombre)}</span><b>${ns.length ? esc((P.grados[p.id] || {}).nombre || 'Sin asignar') : '—'}</b></div>`; }).join('');
+  const gradoDe = p => GRADOS_TXT[p.slug] ? (P.gtxt[p.id] || '') : ((P.grados[p.id] || {}).nombre || '');
+  const gr = P.progs.map(p => { const ns = P.nivs.filter(n => n.programa_id === p.id); return `<div class="kv"><span>${esc(p.nombre)}</span><b>${ns.length || GRADOS_TXT[p.slug] ? esc(gradoDe(p) || 'Sin asignar') : '—'}</b></div>`; }).join('');
   const rec = Object.values(P.regla).filter(r => r.fecha_entrega).length, ter = Object.values(P.regla).filter(r => r.fecha_terminada).length;
   const pills = Array.from({ length: 10 }, (_, i) => { const r = P.regla[i + 1] || {}, c = r.fecha_terminada ? 'ter' : r.fecha_entrega ? 'rec' : ''; return `<button class="pill ${c}${P.regSel === i + 1 ? ' sel' : ''}" data-regsel="${i + 1}" aria-label="Entrega ${i + 1}" title="${r.fecha_entrega ? 'Recibida ' + dateEs(r.fecha_entrega) : 'Pendiente'}${r.fecha_terminada ? ' · terminada ' + dateEs(r.fecha_terminada) : ''}">${i + 1}</button>`; }).join('');
   const sel = P.regSel, rs = P.regla[sel] || {};
@@ -587,7 +597,7 @@ async function renderInicio() {
     : `<div class="panel" style="margin:0"><p class="muted" style="margin:0">Aún no tienes rutina asignada.</p></div>`);
   h += `<h2 style="margin:22px 0 8px">Programas técnicos</h2><div class="pgrid">` + P.progs.map(p => {
     const ns = P.nivs.filter(n => n.programa_id === p.id), all = ns.flatMap(n => tecsDe(n.id)), g = P.grados[p.id];
-    return `<button class="pcard${ns.length ? '' : ' soon'}" ${ns.length ? `data-prog="${p.id}"` : 'disabled'}><b>${esc(p.nombre)}</b><small>${ns.length ? esc(g ? g.nombre : 'Sin grado asignado') : 'Próximamente'}</small>${ns.length ? `<span class="prog"><i style="width:${all.length ? nDom(all) / all.length * 100 : 0}%"></i></span><small>${nDom(all)} de ${all.length} técnicas</small>` : ''}</button>`;
+    return `<button class="pcard${ns.length ? '' : ' soon'}" ${ns.length ? `data-prog="${p.id}"` : 'disabled'}><b>${esc(p.nombre)}</b><small>${ns.length ? esc(g ? g.nombre : (GRADOS_TXT[p.slug] && P.gtxt[p.id]) || 'Sin grado asignado') : 'Próximamente'}</small>${ns.length ? `<span class="prog"><i style="width:${all.length ? nDom(all) / all.length * 100 : 0}%"></i></span><small>${nDom(all)} de ${all.length} técnicas</small>` : ''}</button>`;
   }).join('') + `</div>`;
   h += `<h2 style="margin:22px 0 8px">Info general</h2>` + P.infos.map(i => `<button class="pcard wide" data-info="${esc(i.slug)}"><span class="tx"><b>${esc(i.titulo)}</b></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`).join('')
     + `<a class="pcard wide dl" href="${PDF_SOCIO}" target="_blank" rel="noopener noreferrer"><span class="tx"><b>Impreso de socio (PDF)</b><small>Normas, protección de datos y alta. Descárgalo, rellénalo y fírmalo.</small></span></a>`;
@@ -603,7 +613,7 @@ async function renderInfo(slug) {
 function renderPrograma(pid) {
   const p = P.progs.find(x => x.id === pid); if (!p) return go('inicio');
   const ns = P.nivs.filter(n => n.programa_id === pid), g = P.grados[pid];
-  let h = `<button class="back" data-tab="inicio">${IC.chev}Inicio</button><h1>${esc(p.nombre)}</h1><p class="muted" style="margin:4px 0 14px">${g ? 'Tu grado: ' + esc(g.nombre) : 'Aún sin grado asignado'}</p>`;
+  let h = `<button class="back" data-tab="inicio">${IC.chev}Inicio</button><h1>${esc(p.nombre)}</h1><p class="muted" style="margin:4px 0 14px">${g || P.gtxt[pid] ? 'Tu grado: ' + esc(g ? g.nombre : P.gtxt[pid]) : 'Aún sin grado asignado'}</p>`;
   h += ns.map(n => {
     const l = tecsDe(n.id), t = (n.detalle || {}).tiempo_minimo_antes_examen || {};
     return `<button class="pcard wide" data-niv="${n.id}"><span class="tx"><b>${esc(n.nombre)}${g && g.id === n.id ? '<span class="badge">Tu grado</span>' : ''}</b><small>${nDom(l)} de ${l.length} técnicas${t.meses_adultos ? ` · mínimo ${t.meses_adultos} meses (adultos)` : ''}</small><span class="prog" style="margin:8px 0 0"><i style="width:${l.length ? nDom(l) / l.length * 100 : 0}%"></i></span></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`;
@@ -700,6 +710,10 @@ document.addEventListener('change', async ev => {
       }
       out.textContent = 'Importación terminada: ' + ok + ' filas cargadas' + (omit ? ', ' + omit + ' omitidas (alumno sin cuenta)' : '') + (fall ? ', ' + fall + ' no se pudieron cargar' : '') + '.';
       return;
+    }
+    if (d.gtxt) {
+      const r = t.value ? await sb.from('grado_texto').upsert({ alumno_id: d.al, programa_id: d.gtxt, grado: t.value }, { onConflict: 'alumno_id,programa_id' }) : await sb.from('grado_texto').delete().eq('alumno_id', d.al).eq('programa_id', d.gtxt);
+      if (r.error) throw r.error; toast('Grado guardado');
     }
     if (d.grado) {
       const ns = (await q(sb.from('nivel').select('id').eq('programa_id', d.grado))).map(n => n.id);
