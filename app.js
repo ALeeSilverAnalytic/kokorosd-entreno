@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v20';
+const VERSION = 'v21';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
@@ -594,7 +594,7 @@ function escuelaCard() {
   const sel = P.regSel, rs = P.regla[sel] || {};
   const ed = sel ? `<div class="reged"><b>Entrega ${sel}</b><label>Recibida<input type="date" id="rg-e" value="${rs.fecha_entrega || ''}"></label><label>Terminada<input type="date" id="rg-t" value="${rs.fecha_terminada || ''}"></label><div class="acts"><button class="btn sm" data-regsave="${sel}">Guardar</button><button class="btn alt sm" data-regclear="${sel}">Borrar</button><button class="btn alt sm" data-regclose>Cerrar</button></div></div>` : '<small class="muted">Toca un número para anotar las fechas.</small>';
   const cuo = `<div class="panel" style="margin:0 0 10px"><div class="kv"><span>Cuotas pendientes</span><b class="${P.cuotas.length ? 'pend' : 'okc'}">${P.cuotas.length ? P.cuotas.length : 'Al día'}</b></div>${P.cuotas.length ? `<small class="muted">${esc(cuotaTxt(P.cuotas))}</small>` : ''}</div>`;
-  const imp = `<div class="panel" style="margin:0 0 10px"><div class="kv" style="align-items:center"><span>Impreso de socio</span>${P.impreso ? `<b class="okc">Firmado, recibido el ${dateEs(P.impreso)}</b>` : `<span style="display:flex;align-items:center;gap:10px"><b class="pend">Pendiente</b>${FORM_IMPRESO ? `<a class="btn sm" href="${FORM_IMPRESO}" target="_blank" rel="noopener noreferrer">Subir firmado</a>` : ''}</span>`}</div></div>`;
+  const imp = `<div class="panel" style="margin:0 0 10px"><div class="kv" style="align-items:center"><span>Impreso de socio</span>${P.impreso ? `<b class="okc">Firmado, recibido el ${dateEs(P.impreso)}</b>` : '<b class="pend">Pendiente</b>'}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><a class="btn alt sm" style="width:auto;flex:1 1 0;text-align:center" href="${PDF_SOCIO}" target="_blank" rel="noopener noreferrer">Descargar</a>${!P.impreso && FORM_IMPRESO ? `<a class="btn sm" style="width:auto;flex:1 1 0;text-align:center" href="${FORM_IMPRESO}" target="_blank" rel="noopener noreferrer">Subir firmado</a>` : ''}</div>${P.impreso ? '' : '<small class="muted" style="display:block;margin-top:8px">Descárgalo, rellénalo, fírmalo y súbelo.</small>'}</div>`;
   return cuo + imp + `<div class="panel" style="margin:0 0 10px">${gr}</div>
   <div class="panel" style="margin:0"><div class="kv"><span>Entregas de la regla</span><b>${rec} de 10 recibidas · ${ter} terminadas</b></div><div class="pills">${pills}</div>${ed}</div>`;
 }
@@ -613,8 +613,7 @@ async function renderInicio() {
     ? `<button class="pcard wide" data-tab="hoy"><span class="tx"><b>${esc(rut.nombre)}</b><small>${esc(diaLabel(dia))} · ${esc(dia.nombre)}</small></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`
     : `<div class="panel" style="margin:0"><p class="muted" style="margin:0">Aún no tienes rutina asignada.</p></div>`);
   h += `<h2 style="margin:22px 0 8px">Tú en la escuela</h2><div id="escuela-card">` + escuelaCard() + `</div>`;
-  h += `<h2 style="margin:22px 0 8px">Info general</h2>` + P.infos.map(i => `<button class="pcard wide" data-info="${esc(i.slug)}"><span class="tx"><b>${esc(i.titulo)}</b></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`).join('')
-    + `<a class="pcard wide dl" href="${PDF_SOCIO}" target="_blank" rel="noopener noreferrer"><span class="tx"><b>Impreso de socio (PDF)</b><small>Normas, protección de datos y alta. Descárgalo, rellénalo y fírmalo.</small></span></a>`;
+  h += `<h2 style="margin:22px 0 8px">Info general</h2>` + P.infos.map(i => `<button class="pcard wide" data-info="${esc(i.slug)}"><span class="tx"><b>${esc(i.titulo)}</b></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`).join('');
   view.innerHTML = h;
 }
 async function renderInfo(slug) {
