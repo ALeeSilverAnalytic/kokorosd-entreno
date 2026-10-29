@@ -10,9 +10,7 @@ NS = uuid.UUID('6f1c1d0e-4b7a-4c55-9d52-1c0a0c0c0c0c')
 EXAMEN = {'slug': '1dan-2027', 'nombre': 'Examen 1er DAN', 'fecha': '2027-06-15'}
 D = lambda s: dt.date.fromisoformat(s)
 ENLACE = {  # tarea -> (programa, nivel, secciones separadas por |)   (vacío = tarea sin técnicas)
- 'Repaso cinturón amarillo': ('yawara', 'amarillo', ''), 'Repaso cinturón naranja': ('yawara', 'naranja', ''),
- 'Repaso cinturón verde': ('yawara', 'verde', ''), 'Repaso cinturón azul': ('yawara', 'azul', ''), 'Repaso cinturón marrón': ('yawara', 'marron', ''),
- 'Agresiones especiales': ('yawara', 'negro1', 'Agresiones especiales'), 'Posturas y guardias básicas': ('yawara', 'negro1', 'Posturas básicas|Guardias básicas'),
+  'Agresiones especiales': ('yawara', 'negro1', 'Agresiones especiales'), 'Posturas y guardias básicas': ('yawara', 'negro1', 'Posturas básicas|Guardias básicas'),
  'Atemis marchando': ('yawara', 'negro1', 'Atemis marchando'), 'Puntos vitales': ('yawara', 'negro1', 'Puntos vitales'), 'Combate total': ('yawara', 'negro1', 'Combate total'),
  'Manejo del yawara': ('yawara', 'negro1', 'Manejo del yawara'), 'Agilidad': ('yawara', 'negro1', 'Agilidad'),
  'Katas (todos los de los cinturones inferiores y los del 1er DAN)': ('yawara', 'negro1', 'Katas'), 'Endurecimiento para rompimientos': ('yawara', 'negro1', 'Rompimientos'),
@@ -23,11 +21,6 @@ PLAN = [  # fase, tarea, inicio, fin, quién, notas
  ('0 · Lanzamiento', 'Envío de los PDF del programa', '2026-11-09', '2026-11-09', 'TODOS', ''),
  ('0 · Lanzamiento', 'Detectar y marcar lo que no está en vídeo', '2026-11-09', '2026-11-22', 'TODOS', ''),
  ('0 · Lanzamiento', 'Videoconferencia de coordinación', '2026-11-23', '2026-11-23', 'TODOS', ''),
- ('1 · Repaso de cinturones inferiores', 'Repaso cinturón amarillo', '2026-11-23', '2026-12-06', 'TODOS', ''),
- ('1 · Repaso de cinturones inferiores', 'Repaso cinturón naranja', '2026-12-07', '2026-12-20', 'TODOS', ''),
- ('1 · Repaso de cinturones inferiores', 'Repaso cinturón verde', '2026-12-21', '2027-01-03', 'TODOS', ''),
- ('1 · Repaso de cinturones inferiores', 'Repaso cinturón azul', '2027-01-04', '2027-01-17', 'TODOS', ''),
- ('1 · Repaso de cinturones inferiores', 'Repaso cinturón marrón', '2027-01-18', '2027-01-31', 'TODOS', ''),
  ('2 · Programa 1er DAN', 'Material del profesor', '2027-02-01', '2027-02-07', 'TODOS', ''),
  ('2 · Programa 1er DAN', 'Agresiones especiales', '2027-02-01', '2027-02-21', 'TODOS', 'Sentado en silla, de pie contra pared y tendido en el suelo'),
  ('2 · Programa 1er DAN', 'Posturas y guardias básicas', '2027-02-22', '2027-02-28', 'TODOS', ''),
@@ -45,6 +38,37 @@ PLAN = [  # fase, tarea, inicio, fin, quién, notas
  ('4 · Cierre', 'Repaso general', '2027-05-31', '2027-06-14', 'TODOS', ''),
  ('4 · Cierre', 'EXAMEN 1er DAN', '2027-06-15', '2027-06-15', 'TODOS', ''),
 ]
+def _repasos():
+    """Repaso de cinturones inferiores: primer grupo de Defensa personal (memorizar) + una tarea por sección."""
+    d = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'content', 'yawara.json')))
+    niv = {r['id']: r for o in d['ops'] if o['t'] == 'nivel' for r in o['rows']}
+    tec = [o for o in d['ops'] if o['t'] == 'tecnica'][0]['rows']
+    out = []; ini = D('2026-11-23'); F = '1 · Repaso de cinturones inferiores'
+    for cod, nom in [('amarillo', 'Amarillo'), ('naranja', 'Naranja'), ('verde', 'Verde'), ('azul', 'Azul'), ('marron', 'Marrón')]:
+        secs = []; primer = None
+        for r in tec:
+            if niv[r['nivel_id']]['codigo'] != cod or r['seccion'] == 'Katas': continue
+            a = r['seccion'].split(' › ')[0]
+            if a not in secs: secs.append(a)
+            if primer is None and a == 'Defensa personal': primer = r['seccion']
+        fin = ini + dt.timedelta(days=13)
+        fp = ini + dt.timedelta(days=4)
+        out.append((F, nom + ' · Primer grupo (memorizar entero y en orden)', ini.isoformat(), fp.isoformat(), 'TODOS', 'Se examinan también como profesores de este grupo', ('yawara', cod, primer)))
+        resto = fin - fp; n = len(secs)
+        for k, a in enumerate(secs):
+            i = fp + dt.timedelta(days=1 + (resto.days * k) // n); f = fp + dt.timedelta(days=(resto.days * (k + 1)) // n)
+            sc = a + '|-' + primer if a == 'Defensa personal' else a
+            out.append((F, nom + ' · ' + a + (' (resto de grupos)' if a == 'Defensa personal' else ''), i.isoformat(), max(i, f).isoformat(), 'TODOS', 'Repaso ligero: 2 técnicas y una combinación de atemis de cada grupo', ('yawara', cod, sc)))
+        ini = fin + dt.timedelta(days=1)
+    return out
+_ENL = dict(ENLACE)
+_PRE = [p for p in PLAN if not p[0].startswith('1 ·')]
+_REP = _repasos()
+PLAN = []
+for p in _PRE:
+    if p[0].startswith('2 ·') and not any(x[0].startswith('1 ·') for x in PLAN): PLAN += [x[:6] for x in _REP]; _ENL.update({x[1]: x[6] for x in _REP})
+    PLAN.append(p)
+ENLACE = _ENL
 def plantilla(out):
     wb = Workbook(); ws = wb.active; ws.title = 'Plan'
     ws.append(['Fase', 'Tarea', 'Inicio', 'Fin', 'Quién', 'Notas', 'Programa', 'Nivel', 'Sección'])
@@ -87,8 +111,10 @@ def importar(path):
         tareas.append({'orden': len(tareas) + 1, 'fase': str(fase or '').strip(), 'titulo': str(t).strip(), 'inicio': g(i).isoformat(), 'fin': g(f or i).isoformat(), 'quien': str(q or 'TODOS').strip(), 'nota': (str(n).strip() if n else None), 'programa_slug': (str(pg).strip() if pg else None), 'nivel_codigo': (str(nv).strip() if nv else None), 'seccion': (str(sc).strip() if sc else None)})
     escribir(tareas)
 def escribir(tareas):
+    titulos = [t['titulo'] for t in tareas]
+    assert len(titulos) == len(set(titulos)), 'Hay dos tareas con el mismo nombre: cámbialas para distinguirlas'  # el id de la tarea sale de su nombre
     eid = str(uuid.uuid5(NS, 'examen-' + EXAMEN['slug']))
-    rows = [{'id': str(uuid.uuid5(NS, f"examen-tarea-{EXAMEN['slug']}-{t['orden']}")), 'examen_slug': EXAMEN['slug'], **t} for t in tareas]
+    rows = [{'id': str(uuid.uuid5(NS, f"examen-tarea-{EXAMEN['slug']}-{t['titulo']}")), 'examen_slug': EXAMEN['slug'], **t} for t in tareas]
     ops = [{'t': 'examen', 'k': 'slug', 'rows': [{'id': eid, **EXAMEN}]}, {'t': 'examen_tarea', 'k': 'id', 'rows': rows}]
     here = os.path.dirname(os.path.abspath(__file__))
     json.dump({'ops': ops}, open(os.path.join(here, '..', 'content', 'examen_1dan.json'), 'w'), ensure_ascii=False, separators=(',', ':'))

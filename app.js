@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v22';
+const VERSION = 'v23';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
@@ -473,7 +473,7 @@ async function exMaestroPanel(al, eids) {
     const hecho = new Set(tc.filter(x => x.completada).map(x => x.tecnica_id)), notas = tc.filter(x => x.nota).length, mio = Object.fromEntries(ta.map(x => [x.tarea_id, x]));
     let fase = null, tot = 0, hec = 0; h += `<h2 style="margin:18px 0 8px">Avance · ${esc(ex.nombre)}</h2><div class="panel" style="margin:0">`;
     tr.forEach(t => {
-      const ss = t.seccion ? t.seccion.split('|').map(x => x.trim()) : null, l = t.nivel_id ? tecs.filter(x => x.nivel_id === t.nivel_id && (!ss || ss.includes(x.seccion.split(' › ')[0]))) : [];
+      const l = exFiltra(tecs, t.nivel_id, t.seccion);
       const o = mio[t.id] || {}, n = l.filter(x => hecho.has(x.id)).length, fin = l.length ? n === l.length : !!o.hecha; tot++; if (fin) hec++;
       if (t.fase !== fase) { fase = t.fase; h += `<div class="muted" style="margin:10px 0 2px;font-size:12px;text-transform:uppercase;letter-spacing:.06em">${esc(fase)}</div>`; }
       const ini = o.inicio || t.inicio, fi = o.fin || t.fin, propia = !!(o.inicio || o.fin);
@@ -651,7 +651,14 @@ async function renderInfo(slug) {
   view.scrollTop = 0;
 }
 const diasPara = f => Math.round((new Date(f + 'T00:00:00') - new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00')) / 864e5);
-const exTecs = t => { if (!t.nivel_id) return []; const ss = t.seccion ? t.seccion.split('|').map(x => x.trim()) : null; return P.tecs.filter(x => x.nivel_id === t.nivel_id && (!ss || ss.includes(x.seccion.split(' › ')[0]))); };
+/* Sección de una tarea del examen: «Sec» = toda la sección; «Sec › grupo» = solo ese grupo; «-Sec › grupo» = excluirlo; varias separadas por | */
+const exFiltra = (lista, nivelId, secs) => {
+  if (!nivelId) return [];
+  const ent = (secs || '').split('|').map(x => x.trim()).filter(Boolean), inc = ent.filter(x => x[0] !== '-'), exc = ent.filter(x => x[0] === '-').map(x => x.slice(1).trim());
+  const m = (sec, e) => e.includes(' › ') ? sec === e : sec.split(' › ')[0] === e;
+  return lista.filter(x => x.nivel_id === nivelId && (!inc.length || inc.some(e => m(x.seccion, e))) && !exc.some(e => m(x.seccion, e)));
+};
+const exTecs = t => exFiltra(P.tecs, t.nivel_id, t.seccion);
 const exF = t => { const o = P.exT[t.id] || {}; return { ini: o.inicio || t.inicio, fin: o.fin || t.fin, propia: !!(o.inicio || o.fin) }; };
 const exFechaTxt = (i, f) => !i ? '' : f && f !== i ? dateEsY(i) + ' → ' + dateEsY(f) : dateEsY(i);
 function exProg(e, t) { const l = exTecs(t); if (!l.length) return null; return { n: l.filter(x => (P.exTec[e.id + '|' + x.id] || {}).completada).length, m: l.length }; }
