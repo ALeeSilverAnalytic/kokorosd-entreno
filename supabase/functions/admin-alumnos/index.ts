@@ -24,7 +24,7 @@ function clave() {
 const IMPORTABLES: Record<string, string> = {
   asignacion: "alumno_id,rutina_id", recomendado: "alumno_id,bloque_item_id", sustitucion: "alumno_id,bloque_item_id",
   serie_registro: "id", marca_hecho: "alumno_id,bloque_item_id,fecha", progreso_tecnica: "alumno_id,tecnica_id",
-  validacion_tecnica: "alumno_id,tecnica_id", grado_alumno: "alumno_id,nivel_id", grado_texto: "alumno_id,programa_id", examen_alumno: "examen_id,alumno_id", nota_tecnica: "alumno_id,tecnica_id",
+  validacion_tecnica: "alumno_id,tecnica_id", grado_alumno: "alumno_id,nivel_id", grado_texto: "alumno_id,programa_id", examen_alumno: "examen_id,alumno_id", examen_tarea_alumno: "alumno_id,tarea_id", examen_tecnica_alumno: "alumno_id,examen_id,tecnica_id", nota_tecnica: "alumno_id,tecnica_id",
   entrega_regla: "alumno_id,numero", cuota_pendiente: "alumno_id,anio,trimestre", impreso_socio: "alumno_id", aviso: "id",
 };
 

@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v21';
+const VERSION = 'v22';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
@@ -400,7 +400,7 @@ const avisosPanel = avs => avs === null ? '' : `<div class="panel"><h2 style="ma
   ${avs.map(a => `<div class="kv" style="margin-top:8px"><span style="color:var(--fg)">${esc(a.titulo)}</span><button class="btn alt sm" data-avdel="${a.id}">Quitar</button></div>`).join('')}</div>`;
 /* ───────── altas, claves y copia de seguridad (solo maestro) ───────── */
 const GRADOS_TXT = { silat: ['Principiante', 'Iniciado', 'Veterano'], boxeo: ['Principiante', 'Iniciado', 'Veterano'] };
-const BK_TABLAS = { examen_alumno: 'examen_id,alumno_id', grado_texto: 'alumno_id,programa_id', asignacion: 'alumno_id,rutina_id', recomendado: 'alumno_id,bloque_item_id', sustitucion: 'alumno_id,bloque_item_id', serie_registro: 'id', marca_hecho: 'alumno_id,bloque_item_id,fecha', progreso_tecnica: 'alumno_id,tecnica_id', validacion_tecnica: 'alumno_id,tecnica_id', grado_alumno: 'alumno_id,nivel_id', nota_tecnica: 'alumno_id,tecnica_id', entrega_regla: 'alumno_id,numero', cuota_pendiente: 'alumno_id,anio,trimestre', impreso_socio: 'alumno_id', aviso: 'id' };
+const BK_TABLAS = { examen_alumno: 'examen_id,alumno_id', examen_tarea_alumno: 'alumno_id,tarea_id', examen_tecnica_alumno: 'alumno_id,examen_id,tecnica_id', grado_texto: 'alumno_id,programa_id', asignacion: 'alumno_id,rutina_id', recomendado: 'alumno_id,bloque_item_id', sustitucion: 'alumno_id,bloque_item_id', serie_registro: 'id', marca_hecho: 'alumno_id,bloque_item_id,fecha', progreso_tecnica: 'alumno_id,tecnica_id', validacion_tecnica: 'alumno_id,tecnica_id', grado_alumno: 'alumno_id,nivel_id', nota_tecnica: 'alumno_id,tecnica_id', entrega_regla: 'alumno_id,numero', cuota_pendiente: 'alumno_id,anio,trimestre', impreso_socio: 'alumno_id', aviso: 'id' };
 const ALTA = { prev: [], res: [], exist: new Set() };
 const normAlias = t => String(t || '').split(/[\t;,]/)[0].split('@')[0].normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9._-]/g, '');
 const aliasOk = a => /^[a-z0-9][a-z0-9._-]{2,29}$/.test(a);
@@ -462,7 +462,28 @@ async function renderAlumnos() {
   ALTA.exist = new Set(al.map(a => a.alias)); ALTA.prev = []; ALTA.res = [];
   view.innerHTML = `<h1>Alumnos</h1>` + `<div class="panel"><h2 style="margin-bottom:6px">Contenido</h2><p class="muted" style="margin:0 0 10px">Carga o actualiza programas y ejercicios publicados en el repositorio. Se puede repetir sin duplicar nada.</p><button class="btn sm" data-sync>Sincronizar contenido</button><div id="syncout" class="muted" style="margin-top:10px"></div></div>` + altaPanel() + copiaPanel() + avisosPanel(avs) + (al.length ? al.map(a => `<button class="stu" data-alumno="${a.id}"><span class="tx"><b>${esc(a.alias)}</b>${!a.activo ? '<span class="badge">Baja</span>' : ''}${a.debe_cambiar_clave ? '<span class="badge">Clave temporal</span>' : ''}<span class="s">${last[a.id] ? 'Último registro: ' + dateEs(last[a.id]) : 'Sin registros'}</span></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`).join('') : '<div class="panel"><p class="muted" style="margin:0">Aún no hay alumnos. Añádelos con el cuadro "Añadir alumnos".</p></div>');
 }
-function escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp, gtx, exm, eal) {
+async function exMaestroPanel(al, eids) {
+  let h = '';
+  for (const eid of eids) {
+    const [ex] = await q(sb.from('examen').select('*').eq('id', eid)); if (!ex) continue;
+    const [tr, ta, tc] = await Promise.all([q(sb.from('examen_tarea').select('*').eq('examen_id', eid).order('orden')),
+      q(sb.from('examen_tarea_alumno').select('*').eq('alumno_id', al)).catch(() => []), q(sb.from('examen_tecnica_alumno').select('tecnica_id,completada,nota').eq('alumno_id', al).eq('examen_id', eid)).catch(() => [])]);
+    const nids = [...new Set(tr.map(t => t.nivel_id).filter(Boolean))];
+    const tecs = nids.length ? await q(sb.from('tecnica').select('id,nivel_id,seccion').in('nivel_id', nids).limit(5000)) : [];
+    const hecho = new Set(tc.filter(x => x.completada).map(x => x.tecnica_id)), notas = tc.filter(x => x.nota).length, mio = Object.fromEntries(ta.map(x => [x.tarea_id, x]));
+    let fase = null, tot = 0, hec = 0; h += `<h2 style="margin:18px 0 8px">Avance · ${esc(ex.nombre)}</h2><div class="panel" style="margin:0">`;
+    tr.forEach(t => {
+      const ss = t.seccion ? t.seccion.split('|').map(x => x.trim()) : null, l = t.nivel_id ? tecs.filter(x => x.nivel_id === t.nivel_id && (!ss || ss.includes(x.seccion.split(' › ')[0]))) : [];
+      const o = mio[t.id] || {}, n = l.filter(x => hecho.has(x.id)).length, fin = l.length ? n === l.length : !!o.hecha; tot++; if (fin) hec++;
+      if (t.fase !== fase) { fase = t.fase; h += `<div class="muted" style="margin:10px 0 2px;font-size:12px;text-transform:uppercase;letter-spacing:.06em">${esc(fase)}</div>`; }
+      const ini = o.inicio || t.inicio, fi = o.fin || t.fin, propia = !!(o.inicio || o.fin);
+      h += `<div class="kv"><span>${esc(t.titulo)}${ini ? `<small style="display:block">${esc(exFechaTxt(ini, fi))}${propia ? ' · fecha propia' : ''}</small>` : ''}</span><b class="${fin ? 'okc' : ''}">${l.length ? n + ' de ' + l.length : fin ? 'Hecha' : 'Pendiente'}</b></div>`;
+    });
+    h += `<small class="muted" style="display:block;margin-top:10px">${hec} de ${tot} tareas completas · ${notas} notas propias.</small></div>`;
+  }
+  return h;
+}
+function escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp, gtx, exm, eal, exh) {
   const yr = new Date().getFullYear();
   let h = `<h2 style="margin:18px 0 8px">Grados</h2><div class="panel" style="margin:0">`;
   progs.filter(p => p.slug !== 'fisico').forEach(p => {
@@ -476,6 +497,7 @@ function escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp, gtx, exm, eal)
   });
   h += `</div>`;
   if (exm && exm.length) h += `<h2 style="margin:18px 0 8px">Examen</h2><div class="panel" style="margin:0">${exm.map(e => `<div class="kv"><span>${esc(e.nombre)} · ${dateEsY(e.fecha)}</span><select class="sel" data-exal="${e.id}" data-al="${id}" aria-label="${esc(e.nombre)}"><option value="0">No se examina</option><option value="1"${(eal || []).some(x => x.examen_id === e.id) ? ' selected' : ''}>Se examina</option></select></div>`).join('')}</div>`;
+  h += exh || '';
   if (imp !== null && imp !== undefined) {
     h += `<h2 style="margin:18px 0 8px">Impreso de socio</h2><div class="panel" style="margin:0"><div class="reg"><label>Firmado recibido<input type="date" data-imp="1" data-al="${id}" value="${imp[0] ? imp[0].fecha_recibido : ''}"></label></div><small class="muted">Déjalo vacío si aún no ha llegado.</small></div>`;
   }
@@ -509,6 +531,7 @@ async function renderAlumno(id) {
   const a = perfil[0]; if (!a) return go('alumnos');
   const faltan = [...new Set(ser.map(s => s.ejercicio_id))].filter(x => !S.ex[x]);
   if (faltan.length) (await q(sb.from('ejercicio').select('*').in('id', faltan))).forEach(e => { S.ex[e.id] = e; });
+  let exh = ''; try { if (eal && eal.length) exh = await exMaestroPanel(id, eal.map(x => x.examen_id)); } catch (e) { console.warn(e); }
   const asignadas = new Set(asg.filter(x => x.activa).map(x => x.rutina_id));
   const recIds = new Set(rec.map(r => r.bloque_item_id));
   let h = `<button class="back" data-alumnos>${IC.chev}Alumnos</button><h1>${esc(a.alias)}</h1>
@@ -526,7 +549,7 @@ async function renderAlumno(id) {
       });
     }));
   }
-  h += escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp, gtx, exm, eal);
+  h += escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp, gtx, exm, eal, exh);
   h += `<h2 style="margin:18px 0 8px">Actividad reciente</h2>`;
   if (!ser.length) h += '<p class="muted">Sin registros todavía.</p>';
   else {
@@ -548,7 +571,7 @@ async function renderAlumno(id) {
 }
 
 /* ───────── inicio y programas técnicos ───────── */
-const P = { cargado: false, progs: [], nivs: [], tecs: [], mio: {}, val: {}, regSel: 0, grados: {}, gtxt: {}, exams: [], notas: {}, avisos: [], infos: [], regla: {}, cuotas: [], impreso: null };
+const P = { cargado: false, progs: [], nivs: [], tecs: [], mio: {}, val: {}, regSel: 0, grados: {}, gtxt: {}, exams: [], exT: {}, exTec: {}, notas: {}, avisos: [], infos: [], regla: {}, cuotas: [], impreso: null };
 async function cargarProgramas() {
   const uid = S.user.id;
   const [progs, nivs, tecs, mio, val, gr, notas] = await Promise.all([
@@ -578,6 +601,10 @@ async function cargarProgramas() {
       let ex = await q(sb.from('examen').select('*').order('fecha')); if (ids) ex = ex.filter(e => ids.includes(e.id));
       const tr = ex.length ? await q(sb.from('examen_tarea').select('*').in('examen_id', ex.map(e => e.id)).order('orden')) : [];
       P.exams = ex.map(e => ({ ...e, tareas: tr.filter(t => t.examen_id === e.id) }));
+      if (ex.length) {
+        const [ta, tc] = await Promise.all([q(sb.from('examen_tarea_alumno').select('*').eq('alumno_id', uid)).catch(() => []), q(sb.from('examen_tecnica_alumno').select('*').eq('alumno_id', uid)).catch(() => [])]);
+        P.exT = Object.fromEntries(ta.map(x => [x.tarea_id, x])); P.exTec = Object.fromEntries(tc.map(x => [x.examen_id + '|' + x.tecnica_id, x]));
+      }
     }
   } catch (e) { console.warn(e); }
   P.cargado = true;
@@ -624,19 +651,62 @@ async function renderInfo(slug) {
   view.scrollTop = 0;
 }
 const diasPara = f => Math.round((new Date(f + 'T00:00:00') - new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00')) / 864e5);
+const exTecs = t => { if (!t.nivel_id) return []; const ss = t.seccion ? t.seccion.split('|').map(x => x.trim()) : null; return P.tecs.filter(x => x.nivel_id === t.nivel_id && (!ss || ss.includes(x.seccion.split(' › ')[0]))); };
+const exF = t => { const o = P.exT[t.id] || {}; return { ini: o.inicio || t.inicio, fin: o.fin || t.fin, propia: !!(o.inicio || o.fin) }; };
+const exFechaTxt = (i, f) => !i ? '' : f && f !== i ? dateEsY(i) + ' → ' + dateEsY(f) : dateEsY(i);
+function exProg(e, t) { const l = exTecs(t); if (!l.length) return null; return { n: l.filter(x => (P.exTec[e.id + '|' + x.id] || {}).completada).length, m: l.length }; }
 function renderExamen(id) {
   const e = P.exams.find(x => x.id === id); if (!e) return go('inicio');
   const hoy = new Date().toISOString().slice(0, 10), dd = diasPara(e.fecha);
-  let h = `<button class="back" data-tab="inicio">${IC.chev}Inicio</button><h1>${esc(e.nombre)}</h1><p class="muted" style="margin:4px 0 14px">${dateEsY(e.fecha)} · ${dd > 0 ? 'faltan ' + dd + ' días' : dd === 0 ? 'es hoy' : 'examen realizado'}</p>`;
+  let h = `<button class="back" data-tab="inicio">${IC.chev}Inicio</button><h1>${esc(e.nombre)}</h1><p class="muted" style="margin:4px 0 14px">${dateEsY(e.fecha)} · ${dd > 0 ? 'faltan ' + dd + ' días' : dd === 0 ? 'es hoy' : 'examen realizado'}. Toca una tarea para ver su detalle, marcar lo completado, anotar y ajustar tus fechas.</p>`;
   let fase = null;
   e.tareas.forEach(t => {
     if (t.fase !== fase) { if (fase !== null) h += '</section>'; fase = t.fase; h += `<section class="block"><h2>${esc(fase || 'Plan')}</h2>`; }
-    const est = t.fin && t.fin < hoy ? ['Hecha', 'ok'] : t.inicio && t.inicio <= hoy ? ['En curso', 'pr'] : null;
-    const fechas = !t.inicio ? '' : t.fin && t.fin !== t.inicio ? dateEsY(t.inicio) + ' → ' + dateEsY(t.fin) : dateEsY(t.inicio);
-    h += `<div class="tecw"><div class="tec"><span class="cod">·</span><span class="tx">${esc(t.titulo)}<small class="muted" style="display:block">${esc(fechas)}${t.quien && t.quien !== 'TODOS' ? ' · ' + esc(t.quien) : ''}${t.nota ? ' · ' + esc(t.nota) : ''}</small></span>${est ? `<span class="chip ${est[1]}">${est[0]}</span>` : ''}</div></div>`;
+    const f = exF(t), pg = exProg(e, t), hecha = pg ? pg.n === pg.m : (P.exT[t.id] || {}).hecha;
+    const chip = hecha ? '<span class="chip ok">Completada</span>' : f.fin && f.fin < hoy ? '<span class="chip">Vencida</span>' : f.ini && f.ini <= hoy ? '<span class="chip pr">En curso</span>' : '';
+    h += `<button class="pcard wide" style="margin:0 0 6px" data-ex="${e.id}" data-extarea="${t.id}"><span class="tx"><b>${esc(t.titulo)}</b><small>${esc(exFechaTxt(f.ini, f.fin))}${f.propia ? ' · tu fecha' : ''}${pg ? ' · ' + pg.n + ' de ' + pg.m + ' completadas' : ''}${t.quien && t.quien !== 'TODOS' ? ' · ' + esc(t.quien) : ''}</small></span>${chip}</button>`;
   });
   if (fase !== null) h += '</section>';
   view.innerHTML = h;
+}
+function renderExamenTarea(eid, tid) {
+  const e = P.exams.find(x => x.id === eid), t = e && e.tareas.find(x => x.id === tid); if (!t) return go('inicio');
+  const f = exF(t), o = P.exT[tid] || {}, l = exTecs(t);
+  let h = `<button class="back" data-exam="${eid}">${IC.chev}${esc(e.nombre)}</button><h1>${esc(t.titulo)}</h1>${t.nota ? `<p class="muted" style="margin:4px 0 8px">${esc(t.nota)}</p>` : ''}`;
+  h += `<div class="panel"><div class="reg"><label>Inicio<input type="date" id="ex-i" value="${f.ini || ''}"></label><label>Fin<input type="date" id="ex-f" value="${f.fin || ''}"></label></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn sm" data-exfsave="${tid}" data-ex="${eid}">Guardar mis fechas</button>${f.propia ? `<button class="btn alt sm" data-exfreset="${tid}" data-ex="${eid}">Volver a la fecha del plan</button>` : ''}</div><small class="muted" style="display:block;margin-top:8px">Plan: ${esc(exFechaTxt(t.inicio, t.fin) || 'sin fecha')}. Tus cambios solo afectan a tu copia.</small></div>`;
+  if (!l.length) h += `<button class="tog${o.hecha ? ' on' : ''}" data-exhecha="${tid}" data-ex="${eid}"><span class="tx">${o.hecha ? 'Hecha' : 'Marcar como hecha'}</span></button>`;
+  else {
+    const n = l.filter(x => (P.exTec[eid + '|' + x.id] || {}).completada).length;
+    h += `<p class="muted" style="margin:10px 0 8px">${n} de ${l.length} completadas. Toca una técnica para marcarla; esto es aparte de «dominada» de los programas.</p>`;
+    let sec = null, sub = null;
+    l.forEach(x => {
+      const [a, b] = x.seccion.split(' › ');
+      if (a !== sec) { if (sec !== null) h += '</section>'; sec = a; sub = null; h += `<section class="block"><h2>${esc(a)}</h2>`; }
+      if (b && b !== sub) { sub = b; h += `<h3 class="sub">${esc(b)}</h3>`; }
+      const r = P.exTec[eid + '|' + x.id] || {}, k = eid + '|' + x.id;
+      h += `<div class="tecw"><div class="tec${r.completada ? ' val' : ''}" role="button" tabindex="0" data-extec="${x.id}" data-ex="${eid}" data-extarea="${tid}" data-exact="1"><span class="cod">${esc(x.codigo || '·')}</span><span class="tx">${rich(x.titulo)}</span>${r.completada ? '<span class="chip ok">Completada</span>' : ''}</div><button class="nbtn${r.nota ? ' on' : ''}" data-exnb="${x.id}" aria-label="Nota de la técnica ${esc(x.codigo || '')}" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="${r.nota ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 3h14v14l-5 4H5z"/><path d="M14 21v-4h5"/></svg></button><div class="nbox" id="exnb-${x.id}" hidden><textarea maxlength="200" rows="2" data-exnotatxt="${esc(k)}" placeholder="Tu nota para el examen (máx. 200 caracteres)">${esc(r.nota || '')}</textarea><small class="muted">Solo la ves tú y tu maestro.</small></div></div>`;
+    });
+    if (sec !== null) h += '</section>';
+  }
+  view.innerHTML = h;
+}
+async function exGuarda(tabla, conf, row) { return enqueue({ k: 'ups', t: tabla, conf, row: { alumno_id: S.user.id, ...row } }); }
+async function exToggleTec(eid, tid, tarea) {
+  const k = eid + '|' + tid, cur = P.exTec[k] || {}, nv = !cur.completada;
+  P.exTec[k] = { ...cur, completada: nv };
+  const y = view.scrollTop; renderExamenTarea(eid, tarea); view.scrollTop = y;
+  await exGuarda('examen_tecnica_alumno', 'alumno_id,examen_id,tecnica_id', { examen_id: eid, tecnica_id: tid, completada: nv, nota: cur.nota || null, actualizado: new Date().toISOString() });
+}
+async function exFechas(eid, tid, reset) {
+  const o = P.exT[tid] || {};
+  const row = reset ? { tarea_id: tid, inicio: null, fin: null, hecha: !!o.hecha } : { tarea_id: tid, inicio: $('#ex-i').value || null, fin: $('#ex-f').value || null, hecha: !!o.hecha };
+  if (!reset && row.inicio && row.fin && row.fin < row.inicio) return toast('El fin no puede ser anterior al inicio.');
+  P.exT[tid] = { ...o, ...row, alumno_id: S.user.id }; renderExamenTarea(eid, tid); toast(reset ? 'Fechas del plan restauradas' : 'Fechas guardadas');
+  await exGuarda('examen_tarea_alumno', 'alumno_id,tarea_id', row);
+}
+async function exHecha(eid, tid) {
+  const o = P.exT[tid] || {}, nv = !o.hecha; P.exT[tid] = { ...o, hecha: nv, alumno_id: S.user.id }; renderExamenTarea(eid, tid);
+  await exGuarda('examen_tarea_alumno', 'alumno_id,tarea_id', { tarea_id: tid, inicio: o.inicio || null, fin: o.fin || null, hecha: nv });
 }
 function renderPrograma(pid) {
   const p = P.progs.find(x => x.id === pid); if (!p) return go('inicio');
@@ -693,7 +763,13 @@ async function sincronizar(log) {
       }
       if (op.t === 'examen_tarea') {
         const ex = Object.fromEntries((await q(sb.from('examen').select('id,slug'))).map(e => [e.slug, e.id]));
-        rows = rows.map(r => { const { examen_slug, ...o } = r; if (!ex[examen_slug]) throw new Error('Falta el examen ' + examen_slug); return { ...o, examen_id: ex[examen_slug] }; });
+        const pr = Object.fromEntries((await q(sb.from('programa').select('id,slug'))).map(p => [p.slug, p.id]));
+        const nv = {}; (await q(sb.from('nivel').select('id,codigo,programa_id'))).forEach(n => { nv[n.programa_id + '|' + n.codigo] = n.id; });
+        rows = rows.map(r => {
+          const { examen_slug, programa_slug, nivel_codigo, ...o } = r; if (!ex[examen_slug]) throw new Error('Falta el examen ' + examen_slug);
+          const nid = nivel_codigo ? nv[pr[programa_slug] + '|' + nivel_codigo] : null; if (nivel_codigo && !nid) throw new Error('Falta el nivel ' + programa_slug + '/' + nivel_codigo);
+          return { ...o, examen_id: ex[examen_slug], nivel_id: nid || null, seccion: o.seccion || null };
+        });
       }
       for (let i = 0; i < rows.length; i += 200) {
         const r = await sb.from(op.t).upsert(rows.slice(i, i + 200), { onConflict: op.k });
@@ -776,8 +852,16 @@ document.addEventListener('change', async ev => {
   } catch (e) { console.warn(e); toast('No se pudo guardar.'); }
 });
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape') cierraClip(); });
-document.addEventListener('keydown', ev => { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('[data-tec]')) { ev.preventDefault(); ev.target.click(); } });
+document.addEventListener('keydown', ev => { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('[data-tec],[data-extec]')) { ev.preventDefault(); ev.target.click(); } });
 document.addEventListener('focusout', async ev => {
+  const xa = ev.target;
+  if (xa.dataset && xa.dataset.exnotatxt) {
+    const k = xa.dataset.exnotatxt, [eid, tid] = k.split('|'), txt = xa.value.trim().slice(0, 200), cur = P.exTec[k] || {};
+    if ((cur.nota || '') === txt) return;
+    P.exTec[k] = { ...cur, nota: txt || null };
+    const nb = document.querySelector(`[data-exnb="${tid}"]`); if (nb) { nb.classList.toggle('on', !!txt); nb.querySelector('svg').setAttribute('fill', txt ? 'currentColor' : 'none'); }
+    return exGuarda('examen_tecnica_alumno', 'alumno_id,examen_id,tecnica_id', { examen_id: eid, tecnica_id: tid, completada: !!cur.completada, nota: txt || null, actualizado: new Date().toISOString() });
+  }
   const ta = ev.target; if (!ta.dataset || !ta.dataset.notatxt) return;
   const id = ta.dataset.notatxt, txt = ta.value.trim().slice(0, 200);
   if ((P.notas[id] || '') === txt) return;
@@ -789,7 +873,7 @@ document.addEventListener('click', async ev => {
   const ca = ev.target.closest('a[data-clip]'); if (ca) { ev.preventDefault(); return abreClip(ca.dataset.clip, ca.textContent); }
   if (ev.target.id === 'vmodal') return cierraClip();
   if (ev.target.closest('a')) return;
-  const b = ev.target.closest('button, [data-tec]'); if (!b) return;
+  const b = ev.target.closest('button, [data-tec], [data-extec]'); if (!b) return;
   const d = b.dataset;
   try {
     if (d.vrate) { const v = document.querySelector('#vmodal video'); if (v) v.playbackRate = +d.vrate; document.querySelectorAll('[data-vrate]').forEach(x => x.classList.toggle('on', x === b)); return; }
@@ -875,6 +959,12 @@ document.addEventListener('click', async ev => {
       b.disabled = false; b.textContent = 'Sincronizar contenido'; return;
     }
     if (d.info) return renderInfo(d.info);
+    if (d.exfsave) return exFechas(d.ex, d.exfsave, false);
+    if (d.exfreset) return exFechas(d.ex, d.exfreset, true);
+    if (d.exhecha) return exHecha(d.ex, d.exhecha);
+    if (d.extec) return exToggleTec(d.ex, d.extec, d.extarea);
+    if (d.exnb) { const bx = document.getElementById('exnb-' + d.exnb); bx.hidden = !bx.hidden; b.setAttribute('aria-expanded', !bx.hidden); if (!bx.hidden) bx.querySelector('textarea').focus(); return; }
+    if (d.extarea) return renderExamenTarea(d.ex, d.extarea);
     if (d.exam) return renderExamen(d.exam);
     if (d.prog) return renderPrograma(d.prog);
     if (d.niv) return renderNivel(d.niv);
