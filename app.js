@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v19';
+const VERSION = 'v20';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
@@ -593,10 +593,10 @@ function escuelaCard() {
   const pills = Array.from({ length: 10 }, (_, i) => { const r = P.regla[i + 1] || {}, c = r.fecha_terminada ? 'ter' : r.fecha_entrega ? 'rec' : ''; return `<button class="pill ${c}${P.regSel === i + 1 ? ' sel' : ''}" data-regsel="${i + 1}" aria-label="Entrega ${i + 1}" title="${r.fecha_entrega ? 'Recibida ' + dateEs(r.fecha_entrega) : 'Pendiente'}${r.fecha_terminada ? ' · terminada ' + dateEs(r.fecha_terminada) : ''}">${i + 1}</button>`; }).join('');
   const sel = P.regSel, rs = P.regla[sel] || {};
   const ed = sel ? `<div class="reged"><b>Entrega ${sel}</b><label>Recibida<input type="date" id="rg-e" value="${rs.fecha_entrega || ''}"></label><label>Terminada<input type="date" id="rg-t" value="${rs.fecha_terminada || ''}"></label><div class="acts"><button class="btn sm" data-regsave="${sel}">Guardar</button><button class="btn alt sm" data-regclear="${sel}">Borrar</button><button class="btn alt sm" data-regclose>Cerrar</button></div></div>` : '<small class="muted">Toca un número para anotar las fechas.</small>';
-  return `<div class="panel" style="margin:0 0 10px"><div class="kv"><span>Cuotas pendientes</span><b class="${P.cuotas.length ? 'pend' : 'okc'}">${P.cuotas.length ? P.cuotas.length : 'Al día'}</b></div>${P.cuotas.length ? `<small class="muted">${esc(cuotaTxt(P.cuotas))}</small>` : ''}</div>
-  <div class="panel" style="margin:0 0 10px"><div class="kv"><span>Entregas de la regla</span><b>${rec} de 10 recibidas · ${ter} terminadas</b></div><div class="pills">${pills}</div>${ed}</div>
-  <div class="panel" style="margin:0 0 10px">${gr}</div>
-  <div class="panel" style="margin:0"><div class="kv"><span>Impreso de socio firmado</span><b class="${P.impreso ? 'okc' : 'pend'}">${P.impreso ? 'Recibido el ' + dateEs(P.impreso) : 'Pendiente'}</b></div>${!P.impreso && FORM_IMPRESO ? `<a class="btn sm" style="margin-top:10px;display:inline-block" href="${FORM_IMPRESO}" target="_blank" rel="noopener noreferrer">Subir impreso firmado</a>` : ''}</div>`;
+  const cuo = `<div class="panel" style="margin:0 0 10px"><div class="kv"><span>Cuotas pendientes</span><b class="${P.cuotas.length ? 'pend' : 'okc'}">${P.cuotas.length ? P.cuotas.length : 'Al día'}</b></div>${P.cuotas.length ? `<small class="muted">${esc(cuotaTxt(P.cuotas))}</small>` : ''}</div>`;
+  const imp = `<div class="panel" style="margin:0 0 10px"><div class="kv" style="align-items:center"><span>Impreso de socio</span>${P.impreso ? `<b class="okc">Firmado, recibido el ${dateEs(P.impreso)}</b>` : `<span style="display:flex;align-items:center;gap:10px"><b class="pend">Pendiente</b>${FORM_IMPRESO ? `<a class="btn sm" href="${FORM_IMPRESO}" target="_blank" rel="noopener noreferrer">Subir firmado</a>` : ''}</span>`}</div></div>`;
+  return cuo + imp + `<div class="panel" style="margin:0 0 10px">${gr}</div>
+  <div class="panel" style="margin:0"><div class="kv"><span>Entregas de la regla</span><b>${rec} de 10 recibidas · ${ter} terminadas</b></div><div class="pills">${pills}</div>${ed}</div>`;
 }
 async function renderInicio() {
   view.innerHTML = '<h1>Hola, ' + esc(S.perfil.alias) + '</h1><div class="loading">Cargando…</div>';
@@ -604,15 +604,15 @@ async function renderInicio() {
   const rut = S.rutinas.find(r => r.id === S.sel.r) || S.rutinas[0], bl = rut ? bloquesDe(rut.id) : [], dia = bl.find(b => b.id === S.sel.b) || bl[0];
   let h = `<h1>Hola, ${esc(S.perfil.alias)}</h1>`;
   if (P.avisos.length) h += `<h2 style="margin:18px 0 8px">Avisos</h2>` + P.avisos.map(a => `<details class="panel aviso" style="margin:0 0 8px"><summary><b>${esc(a.titulo)}</b><small class="muted">${dateEs(a.creado.slice(0, 10))}</small></summary>${a.texto ? `<p style="margin:8px 0 0">${esc(a.texto)}</p>` : ''}</details>`).join('');
-  h += `<h2 style="margin:22px 0 8px">Tú en la escuela</h2><div id="escuela-card">` + escuelaCard() + `</div>`;
-  P.exams.forEach(e => { const dd = diasPara(e.fecha); h += `<h2 style="margin:22px 0 8px">${esc(e.nombre)}</h2><button class="pcard wide" data-exam="${e.id}"><span class="tx"><b>${dateEsY(e.fecha)}</b><small>${dd > 0 ? 'Faltan ' + dd + ' días' : dd === 0 ? 'Es hoy' : 'Examen realizado'} · ${e.tareas.length} tareas en el plan</small></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`; });
-  h += `<h2 style="margin:22px 0 8px">Entrenamiento físico</h2>` + (rut && dia
-    ? `<button class="pcard wide" data-tab="hoy"><span class="tx"><b>${esc(rut.nombre)}</b><small>${esc(diaLabel(dia))} · ${esc(dia.nombre)}</small></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`
-    : `<div class="panel" style="margin:0"><p class="muted" style="margin:0">Aún no tienes rutina asignada.</p></div>`);
   h += `<h2 style="margin:22px 0 8px">Programas técnicos</h2><div class="pgrid">` + P.progs.map(p => {
     const ns = P.nivs.filter(n => n.programa_id === p.id), all = ns.flatMap(n => tecsDe(n.id)), g = P.grados[p.id];
     return `<button class="pcard${ns.length ? '' : ' soon'}" ${ns.length ? `data-prog="${p.id}"` : 'disabled'}><b>${esc(p.nombre)}</b><small>${ns.length ? esc(g ? g.nombre : (GRADOS_TXT[p.slug] && P.gtxt[p.id]) || 'Sin grado asignado') : 'Próximamente'}</small>${ns.length ? `<span class="prog"><i style="width:${all.length ? nDom(all) / all.length * 100 : 0}%"></i></span><small>${nDom(all)} de ${all.length} técnicas</small>` : ''}</button>`;
   }).join('') + `</div>`;
+  P.exams.forEach(e => { const dd = diasPara(e.fecha); h += `<h2 style="margin:22px 0 8px">${esc(e.nombre)}</h2><button class="pcard wide" data-exam="${e.id}"><span class="tx"><b>${dateEsY(e.fecha)}</b><small>${dd > 0 ? 'Faltan ' + dd + ' días' : dd === 0 ? 'Es hoy' : 'Examen realizado'} · ${e.tareas.length} tareas en el plan</small></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`; });
+  h += `<h2 style="margin:22px 0 8px">Entrenamiento físico</h2>` + (rut && dia
+    ? `<button class="pcard wide" data-tab="hoy"><span class="tx"><b>${esc(rut.nombre)}</b><small>${esc(diaLabel(dia))} · ${esc(dia.nombre)}</small></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`
+    : `<div class="panel" style="margin:0"><p class="muted" style="margin:0">Aún no tienes rutina asignada.</p></div>`);
+  h += `<h2 style="margin:22px 0 8px">Tú en la escuela</h2><div id="escuela-card">` + escuelaCard() + `</div>`;
   h += `<h2 style="margin:22px 0 8px">Info general</h2>` + P.infos.map(i => `<button class="pcard wide" data-info="${esc(i.slug)}"><span class="tx"><b>${esc(i.titulo)}</b></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`).join('')
     + `<a class="pcard wide dl" href="${PDF_SOCIO}" target="_blank" rel="noopener noreferrer"><span class="tx"><b>Impreso de socio (PDF)</b><small>Normas, protección de datos y alta. Descárgalo, rellénalo y fírmalo.</small></span></a>`;
   view.innerHTML = h;

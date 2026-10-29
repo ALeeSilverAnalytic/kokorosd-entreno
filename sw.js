@@ -1,5 +1,5 @@
 // Service worker: la app funciona sin conexión (carcasa y fotos). Los datos de Supabase NUNCA se guardan aquí.
-const C = 'kokorosd-v19';
+const C = 'kokorosd-v20';
 const CORE = ['./', 'index.html', 'app.css', 'app.js', 'vendor/supabase.js', 'manifest.webmanifest',
               'icon-192.png', 'img/logo-white.png', 'img/logo-red.png'];
 const IMG_HOSTS = ['cdn.jsdelivr.net', 'raw.githubusercontent.com'];
