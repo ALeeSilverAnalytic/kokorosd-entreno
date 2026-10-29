@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v23';
+const VERSION = 'v24';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
@@ -59,6 +59,8 @@ function abreClip(src, titulo) {
   document.body.appendChild(m); m.querySelector('[data-vclose]').focus();
 }
 const q = async p => { const r = await p; if (r.error) throw r.error; return r.data || []; };
+/* Supabase devuelve como máximo 1000 filas por petición: leemos por páginas. mk() debe devolver una consulta nueva con orden estable. */
+const qAll = async (mk, maxPag = 10) => { let out = []; for (let p = 0; p < maxPag; p++) { const r = await q(mk().range(p * 1000, p * 1000 + 999)); out = out.concat(r); if (r.length < 1000) break; } return out; };
 const isNet = e => !e || e.status === 0 || /fetch|network|failed|timeout/i.test(e.message || '') || e.status === 401 || e.code === 'PGRST301';
 
 /* ───────── estado ───────── */
@@ -129,7 +131,7 @@ async function loadAll() {
       bids.length ? q(sb.from('bloque_item').select('*').in('bloque_id', bids).order('orden')) : [],
       q(sb.from('sustitucion').select('*').eq('alumno_id', uid)),
       q(sb.from('recomendado').select('*').eq('alumno_id', uid)),
-      q(sb.from('serie_registro').select('*').eq('alumno_id', uid).order('fecha', { ascending: false }).order('num_serie', { ascending: true }).limit(2000)),
+      qAll(() => sb.from('serie_registro').select('*').eq('alumno_id', uid).order('fecha', { ascending: false }).order('num_serie', { ascending: true }).order('id'), 2),
       q(sb.from('marca_hecho').select('*').eq('alumno_id', uid).eq('fecha', hoy()))
     ]);
     const exIds = [...new Set([...items.map(i => i.ejercicio_id), ...sust.map(s => s.ejercicio_id), ...series.map(s => s.ejercicio_id)].filter(Boolean))];
@@ -469,7 +471,7 @@ async function exMaestroPanel(al, eids) {
     const [tr, ta, tc] = await Promise.all([q(sb.from('examen_tarea').select('*').eq('examen_id', eid).order('orden')),
       q(sb.from('examen_tarea_alumno').select('*').eq('alumno_id', al)).catch(() => []), q(sb.from('examen_tecnica_alumno').select('tecnica_id,completada,nota').eq('alumno_id', al).eq('examen_id', eid)).catch(() => [])]);
     const nids = [...new Set(tr.map(t => t.nivel_id).filter(Boolean))];
-    const tecs = nids.length ? await q(sb.from('tecnica').select('id,nivel_id,seccion').in('nivel_id', nids).limit(5000)) : [];
+    const tecs = nids.length ? await qAll(() => sb.from('tecnica').select('id,nivel_id,seccion').in('nivel_id', nids).order('id')) : [];
     const hecho = new Set(tc.filter(x => x.completada).map(x => x.tecnica_id)), notas = tc.filter(x => x.nota).length, mio = Object.fromEntries(ta.map(x => [x.tarea_id, x]));
     let fase = null, tot = 0, hec = 0; h += `<h2 style="margin:18px 0 8px">Avance · ${esc(ex.nombre)}</h2><div class="panel" style="margin:0">`;
     tr.forEach(t => {
@@ -576,7 +578,7 @@ async function cargarProgramas() {
   const uid = S.user.id;
   const [progs, nivs, tecs, mio, val, gr, notas] = await Promise.all([
     q(sb.from('programa').select('*').order('orden')), q(sb.from('nivel').select('*').order('orden')),
-    q(sb.from('tecnica').select('id,nivel_id,seccion,codigo,titulo,descripcion,orden').order('orden').limit(5000)),
+    qAll(() => sb.from('tecnica').select('id,nivel_id,seccion,codigo,titulo,descripcion,orden').order('nivel_id').order('orden')),
     q(sb.from('progreso_tecnica').select('*').eq('alumno_id', uid)), q(sb.from('validacion_tecnica').select('*').eq('alumno_id', uid)),
     q(sb.from('grado_alumno').select('*').eq('alumno_id', uid).order('fecha')),
     q(sb.from('nota_tecnica').select('tecnica_id,texto').eq('alumno_id', uid)).catch(() => [])]);
