@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v17';
+const VERSION = 'v18';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
@@ -627,11 +627,13 @@ function renderNivel(nid) {
   let h = `<button class="back" data-prog="${n.programa_id}">${IC.chev}${esc((P.progs.find(p => p.id === n.programa_id) || {}).nombre || 'Programa')}</button><h1>${esc(n.nombre)}</h1><p class="muted" style="margin:4px 0 8px">${nDom(l)} de ${l.length} técnicas. Toca una técnica para cambiar su estado: sin marcar, practicando, dominada.</p>`;
   const dt = n.detalle || {};
   if (dt.virtud) h += `<div class="panel nivdet"><b>Virtud: ${esc(dt.virtud)}</b>${[['Trabajo base', dt.trabajo_base], ['Actitudes', dt.actitudes], ['Pensamientos correctos', dt.pensamientos], ['Hitos', dt.hitos], ['Defectos', dt.defectos]].filter(x => x[1]).map(x => `<div><span>${x[0]}:</span> ${esc(x[1])}</div>`).join('')}${dt.intro ? `<p class="muted">${esc(dt.intro)}</p>` : ''}</div>`;
+const matChips = k => ((dt.material || {})[k] || []).map(m => `<a class="vl" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">${esc(m.titulo)}</a>`).join('');
+  if (matChips('_')) h += `<div class="panel nivdet"><b>Teoría y material de apoyo</b><div>${matChips('_')}</div></div>`;
   const grupos = []; l.forEach(t => { let g = grupos[grupos.length - 1]; if (!g || g.k !== t.seccion) { g = { k: t.seccion, l: [] }; grupos.push(g); } g.l.push(t); });
   let sec = null;
   grupos.forEach(g => {
     const [a, b] = g.k.split(' › ');
-    if (a !== sec) { if (sec !== null) h += '</section>'; sec = a; const vu = (dt.videos || {})[a]; h += `<section class="block"><h2>${esc(a)}</h2>${vu ? `<a class="vl vsec" href="${vu}" target="_blank" rel="noopener noreferrer">${IC.play2}Ver vídeo de ${esc(a.toLowerCase())}</a>` : ''}`; }
+    if (a !== sec) { if (sec !== null) h += '</section>'; sec = a; const vu = (dt.videos || {})[a]; h += `<section class="block"><h2>${esc(a)}</h2>${vu ? `<a class="vl vsec" href="${vu}" target="_blank" rel="noopener noreferrer">${IC.play2}Ver vídeo de ${esc(a.toLowerCase())}</a>` : ''}${matChips(a) ? `<div style="margin:0 0 10px">${matChips(a)}</div>` : ''}`; }
     if (b) h += `<h3 class="sub">${esc(b)}${g.l[0].descripcion ? `<small>${esc(g.l[0].descripcion)}</small>` : ''}</h3>`;
     g.l.forEach(t => {
       const v = P.val[t.id], e = EST[P.mio[t.id]];
