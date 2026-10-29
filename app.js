@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v18';
+const VERSION = 'v19';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
@@ -25,6 +25,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 const fmt = n => String(n).replace('.', ',');
 const pad = n => String(n).padStart(2, '0');
 const hoy = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+const dateEsY = d => new Date(d + 'T12:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
 const dateEs = d => new Date(d + 'T12:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }));
 const lsGet = (k, d) => { try { const t = localStorage.getItem(k); return t ? JSON.parse(t) : d; } catch (e) { return d; } };
@@ -399,7 +400,7 @@ const avisosPanel = avs => avs === null ? '' : `<div class="panel"><h2 style="ma
   ${avs.map(a => `<div class="kv" style="margin-top:8px"><span style="color:var(--fg)">${esc(a.titulo)}</span><button class="btn alt sm" data-avdel="${a.id}">Quitar</button></div>`).join('')}</div>`;
 /* ───────── altas, claves y copia de seguridad (solo maestro) ───────── */
 const GRADOS_TXT = { silat: ['Principiante', 'Iniciado', 'Veterano'], boxeo: ['Principiante', 'Iniciado', 'Veterano'] };
-const BK_TABLAS = { grado_texto: 'alumno_id,programa_id', asignacion: 'alumno_id,rutina_id', recomendado: 'alumno_id,bloque_item_id', sustitucion: 'alumno_id,bloque_item_id', serie_registro: 'id', marca_hecho: 'alumno_id,bloque_item_id,fecha', progreso_tecnica: 'alumno_id,tecnica_id', validacion_tecnica: 'alumno_id,tecnica_id', grado_alumno: 'alumno_id,nivel_id', nota_tecnica: 'alumno_id,tecnica_id', entrega_regla: 'alumno_id,numero', cuota_pendiente: 'alumno_id,anio,trimestre', impreso_socio: 'alumno_id', aviso: 'id' };
+const BK_TABLAS = { examen_alumno: 'examen_id,alumno_id', grado_texto: 'alumno_id,programa_id', asignacion: 'alumno_id,rutina_id', recomendado: 'alumno_id,bloque_item_id', sustitucion: 'alumno_id,bloque_item_id', serie_registro: 'id', marca_hecho: 'alumno_id,bloque_item_id,fecha', progreso_tecnica: 'alumno_id,tecnica_id', validacion_tecnica: 'alumno_id,tecnica_id', grado_alumno: 'alumno_id,nivel_id', nota_tecnica: 'alumno_id,tecnica_id', entrega_regla: 'alumno_id,numero', cuota_pendiente: 'alumno_id,anio,trimestre', impreso_socio: 'alumno_id', aviso: 'id' };
 const ALTA = { prev: [], res: [], exist: new Set() };
 const normAlias = t => String(t || '').split(/[\t;,]/)[0].split('@')[0].normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9._-]/g, '');
 const aliasOk = a => /^[a-z0-9][a-z0-9._-]{2,29}$/.test(a);
@@ -461,7 +462,7 @@ async function renderAlumnos() {
   ALTA.exist = new Set(al.map(a => a.alias)); ALTA.prev = []; ALTA.res = [];
   view.innerHTML = `<h1>Alumnos</h1>` + `<div class="panel"><h2 style="margin-bottom:6px">Contenido</h2><p class="muted" style="margin:0 0 10px">Carga o actualiza programas y ejercicios publicados en el repositorio. Se puede repetir sin duplicar nada.</p><button class="btn sm" data-sync>Sincronizar contenido</button><div id="syncout" class="muted" style="margin-top:10px"></div></div>` + altaPanel() + copiaPanel() + avisosPanel(avs) + (al.length ? al.map(a => `<button class="stu" data-alumno="${a.id}"><span class="tx"><b>${esc(a.alias)}</b>${!a.activo ? '<span class="badge">Baja</span>' : ''}${a.debe_cambiar_clave ? '<span class="badge">Clave temporal</span>' : ''}<span class="s">${last[a.id] ? 'Último registro: ' + dateEs(last[a.id]) : 'Sin registros'}</span></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`).join('') : '<div class="panel"><p class="muted" style="margin:0">Aún no hay alumnos. Añádelos con el cuadro "Añadir alumnos".</p></div>');
 }
-function escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp, gtx) {
+function escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp, gtx, exm, eal) {
   const yr = new Date().getFullYear();
   let h = `<h2 style="margin:18px 0 8px">Grados</h2><div class="panel" style="margin:0">`;
   progs.filter(p => p.slug !== 'fisico').forEach(p => {
@@ -474,6 +475,7 @@ function escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp, gtx) {
     h += `<div class="kv"><span>${esc(p.nombre)}</span>${ns.length ? `<select class="sel" data-grado="${p.id}" data-al="${id}" aria-label="Grado en ${esc(p.nombre)}"><option value="">Sin asignar</option>${ns.map(n => `<option value="${n.id}"${n.id === cur ? ' selected' : ''}>${esc(n.nombre)}</option>`).join('')}</select>` : '<b>—</b>'}</div>`;
   });
   h += `</div>`;
+  if (exm && exm.length) h += `<h2 style="margin:18px 0 8px">Examen</h2><div class="panel" style="margin:0">${exm.map(e => `<div class="kv"><span>${esc(e.nombre)} · ${dateEsY(e.fecha)}</span><select class="sel" data-exal="${e.id}" data-al="${id}" aria-label="${esc(e.nombre)}"><option value="0">No se examina</option><option value="1"${(eal || []).some(x => x.examen_id === e.id) ? ' selected' : ''}>Se examina</option></select></div>`).join('')}</div>`;
   if (imp !== null && imp !== undefined) {
     h += `<h2 style="margin:18px 0 8px">Impreso de socio</h2><div class="panel" style="margin:0"><div class="reg"><label>Firmado recibido<input type="date" data-imp="1" data-al="${id}" value="${imp[0] ? imp[0].fecha_recibido : ''}"></label></div><small class="muted">Déjalo vacío si aún no ha llegado.</small></div>`;
   }
@@ -489,7 +491,7 @@ function escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp, gtx) {
 }
 async function renderAlumno(id) {
   view.innerHTML = '<div class="loading">Cargando…</div>';
-  const [perfil, asg, rec, ser, regla, cuotas, grs, progs, nivs, imp, gtx] = await Promise.all([
+  const [perfil, asg, rec, ser, regla, cuotas, grs, progs, nivs, imp, gtx, exm, eal] = await Promise.all([
     q(sb.from('perfil').select('*').eq('id', id)),
     q(sb.from('asignacion').select('*').eq('alumno_id', id)),
     q(sb.from('recomendado').select('*').eq('alumno_id', id)),
@@ -500,7 +502,9 @@ async function renderAlumno(id) {
     q(sb.from('programa').select('*').order('orden')).catch(() => []),
     q(sb.from('nivel').select('id,programa_id,nombre,orden').order('orden')).catch(() => []),
     q(sb.from('impreso_socio').select('fecha_recibido').eq('alumno_id', id)).catch(() => null),
-    q(sb.from('grado_texto').select('*').eq('alumno_id', id)).catch(() => [])
+    q(sb.from('grado_texto').select('*').eq('alumno_id', id)).catch(() => []),
+    q(sb.from('examen').select('id,nombre,fecha').order('fecha')).catch(() => []),
+    q(sb.from('examen_alumno').select('examen_id').eq('alumno_id', id)).catch(() => [])
   ]);
   const a = perfil[0]; if (!a) return go('alumnos');
   const faltan = [...new Set(ser.map(s => s.ejercicio_id))].filter(x => !S.ex[x]);
@@ -522,7 +526,7 @@ async function renderAlumno(id) {
       });
     }));
   }
-  h += escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp, gtx);
+  h += escuelaMaestro(id, regla, cuotas, grs, progs, nivs, imp, gtx, exm, eal);
   h += `<h2 style="margin:18px 0 8px">Actividad reciente</h2>`;
   if (!ser.length) h += '<p class="muted">Sin registros todavía.</p>';
   else {
@@ -544,7 +548,7 @@ async function renderAlumno(id) {
 }
 
 /* ───────── inicio y programas técnicos ───────── */
-const P = { cargado: false, progs: [], nivs: [], tecs: [], mio: {}, val: {}, regSel: 0, grados: {}, gtxt: {}, notas: {}, avisos: [], infos: [], regla: {}, cuotas: [], impreso: null };
+const P = { cargado: false, progs: [], nivs: [], tecs: [], mio: {}, val: {}, regSel: 0, grados: {}, gtxt: {}, exams: [], notas: {}, avisos: [], infos: [], regla: {}, cuotas: [], impreso: null };
 async function cargarProgramas() {
   const uid = S.user.id;
   const [progs, nivs, tecs, mio, val, gr, notas] = await Promise.all([
@@ -567,6 +571,15 @@ async function cargarProgramas() {
   P.progs = progs.filter(p => p.slug !== 'fisico'); P.nivs = nivs; P.tecs = tecs;
   P.mio = Object.fromEntries(mio.map(m => [m.tecnica_id, m.estado])); P.val = Object.fromEntries(val.map(v => [v.tecnica_id, v]));
   P.grados = {}; gr.forEach(g => { const n = nivs.find(x => x.id === g.nivel_id); if (n) P.grados[n.programa_id] = n; });
+  P.exams = [];
+  try {
+    const ids = S.perfil.rol === 'maestro' ? null : (await q(sb.from('examen_alumno').select('examen_id').eq('alumno_id', uid))).map(x => x.examen_id);
+    if (ids === null || ids.length) {
+      let ex = await q(sb.from('examen').select('*').order('fecha')); if (ids) ex = ex.filter(e => ids.includes(e.id));
+      const tr = ex.length ? await q(sb.from('examen_tarea').select('*').in('examen_id', ex.map(e => e.id)).order('orden')) : [];
+      P.exams = ex.map(e => ({ ...e, tareas: tr.filter(t => t.examen_id === e.id) }));
+    }
+  } catch (e) { console.warn(e); }
   P.cargado = true;
 }
 const tecsDe = nid => P.tecs.filter(t => t.nivel_id === nid);
@@ -592,6 +605,7 @@ async function renderInicio() {
   let h = `<h1>Hola, ${esc(S.perfil.alias)}</h1>`;
   if (P.avisos.length) h += `<h2 style="margin:18px 0 8px">Avisos</h2>` + P.avisos.map(a => `<details class="panel aviso" style="margin:0 0 8px"><summary><b>${esc(a.titulo)}</b><small class="muted">${dateEs(a.creado.slice(0, 10))}</small></summary>${a.texto ? `<p style="margin:8px 0 0">${esc(a.texto)}</p>` : ''}</details>`).join('');
   h += `<h2 style="margin:22px 0 8px">Tú en la escuela</h2><div id="escuela-card">` + escuelaCard() + `</div>`;
+  P.exams.forEach(e => { const dd = diasPara(e.fecha); h += `<h2 style="margin:22px 0 8px">${esc(e.nombre)}</h2><button class="pcard wide" data-exam="${e.id}"><span class="tx"><b>${dateEsY(e.fecha)}</b><small>${dd > 0 ? 'Faltan ' + dd + ' días' : dd === 0 ? 'Es hoy' : 'Examen realizado'} · ${e.tareas.length} tareas en el plan</small></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`; });
   h += `<h2 style="margin:22px 0 8px">Entrenamiento físico</h2>` + (rut && dia
     ? `<button class="pcard wide" data-tab="hoy"><span class="tx"><b>${esc(rut.nombre)}</b><small>${esc(diaLabel(dia))} · ${esc(dia.nombre)}</small></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`
     : `<div class="panel" style="margin:0"><p class="muted" style="margin:0">Aún no tienes rutina asignada.</p></div>`);
@@ -609,6 +623,21 @@ async function renderInfo(slug) {
   const p = r[0]; if (!p) return go('inicio');
   view.innerHTML = `<button class="back" data-tab="inicio">${IC.chev}Inicio</button><h1>${esc(p.titulo)}</h1><div class="prosa">${md(p.contenido)}</div>`;
   view.scrollTop = 0;
+}
+const diasPara = f => Math.round((new Date(f + 'T00:00:00') - new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00')) / 864e5);
+function renderExamen(id) {
+  const e = P.exams.find(x => x.id === id); if (!e) return go('inicio');
+  const hoy = new Date().toISOString().slice(0, 10), dd = diasPara(e.fecha);
+  let h = `<button class="back" data-tab="inicio">${IC.chev}Inicio</button><h1>${esc(e.nombre)}</h1><p class="muted" style="margin:4px 0 14px">${dateEsY(e.fecha)} · ${dd > 0 ? 'faltan ' + dd + ' días' : dd === 0 ? 'es hoy' : 'examen realizado'}</p>`;
+  let fase = null;
+  e.tareas.forEach(t => {
+    if (t.fase !== fase) { if (fase !== null) h += '</section>'; fase = t.fase; h += `<section class="block"><h2>${esc(fase || 'Plan')}</h2>`; }
+    const est = t.fin && t.fin < hoy ? ['Hecha', 'ok'] : t.inicio && t.inicio <= hoy ? ['En curso', 'pr'] : null;
+    const fechas = !t.inicio ? '' : t.fin && t.fin !== t.inicio ? dateEsY(t.inicio) + ' → ' + dateEsY(t.fin) : dateEsY(t.inicio);
+    h += `<div class="tecw"><div class="tec"><span class="cod">·</span><span class="tx">${esc(t.titulo)}<small class="muted" style="display:block">${esc(fechas)}${t.quien && t.quien !== 'TODOS' ? ' · ' + esc(t.quien) : ''}${t.nota ? ' · ' + esc(t.nota) : ''}</small></span>${est ? `<span class="chip ${est[1]}">${est[0]}</span>` : ''}</div></div>`;
+  });
+  if (fase !== null) h += '</section>';
+  view.innerHTML = h;
 }
 function renderPrograma(pid) {
   const p = P.progs.find(x => x.id === pid); if (!p) return go('inicio');
@@ -663,10 +692,19 @@ async function sincronizar(log) {
         if (!Object.keys(progs).length) (await q(sb.from('programa').select('id,slug'))).forEach(p => { progs[p.slug] = p.id; });
         rows = rows.map(r => { const { programa_slug, ...o } = r; if (!progs[programa_slug]) throw new Error('Falta el programa ' + programa_slug); return { ...o, programa_id: progs[programa_slug] }; });
       }
+      if (op.t === 'examen_tarea') {
+        const ex = Object.fromEntries((await q(sb.from('examen').select('id,slug'))).map(e => [e.slug, e.id]));
+        rows = rows.map(r => { const { examen_slug, ...o } = r; if (!ex[examen_slug]) throw new Error('Falta el examen ' + examen_slug); return { ...o, examen_id: ex[examen_slug] }; });
+      }
       for (let i = 0; i < rows.length; i += 200) {
         const r = await sb.from(op.t).upsert(rows.slice(i, i + 200), { onConflict: op.k });
         if (r.error) throw new Error(op.t + ': ' + r.error.message);
         log(`${f} · ${op.t}: ${Math.min(i + 200, rows.length)} de ${rows.length}`);
+      }
+      if (op.t === 'examen_tarea' && rows.length) {      // quita del plan las tareas que ya no están en el archivo
+        const eid = rows[0].examen_id, ids = new Set(rows.map(r => r.id));
+        const sobran = (await q(sb.from('examen_tarea').select('id').eq('examen_id', eid))).map(x => x.id).filter(x => !ids.has(x));
+        if (sobran.length) { const r = await sb.from('examen_tarea').delete().in('id', sobran); if (r.error) throw new Error('examen_tarea: ' + r.error.message); }
       }
       if (op.t === 'programa') progs = {};          // programas nuevos: se vuelven a leer antes de resolver los niveles
     }
@@ -712,6 +750,10 @@ document.addEventListener('change', async ev => {
       }
       out.textContent = 'Importación terminada: ' + ok + ' filas cargadas' + (omit ? ', ' + omit + ' omitidas (alumno sin cuenta)' : '') + (fall ? ', ' + fall + ' no se pudieron cargar' : '') + '.';
       return;
+    }
+    if (d.exal) {
+      const r = t.value === '1' ? await sb.from('examen_alumno').upsert({ examen_id: d.exal, alumno_id: d.al }, { onConflict: 'examen_id,alumno_id' }) : await sb.from('examen_alumno').delete().eq('examen_id', d.exal).eq('alumno_id', d.al);
+      if (r.error) throw r.error; toast('Examen guardado');
     }
     if (d.gtxt) {
       const r = t.value ? await sb.from('grado_texto').upsert({ alumno_id: d.al, programa_id: d.gtxt, grado: t.value }, { onConflict: 'alumno_id,programa_id' }) : await sb.from('grado_texto').delete().eq('alumno_id', d.al).eq('programa_id', d.gtxt);
@@ -834,6 +876,7 @@ document.addEventListener('click', async ev => {
       b.disabled = false; b.textContent = 'Sincronizar contenido'; return;
     }
     if (d.info) return renderInfo(d.info);
+    if (d.exam) return renderExamen(d.exam);
     if (d.prog) return renderPrograma(d.prog);
     if (d.niv) return renderNivel(d.niv);
     if (d.tec) return ciclarTecnica(d.tec);
