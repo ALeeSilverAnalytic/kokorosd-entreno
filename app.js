@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v24';
+const VERSION = 'v25';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
@@ -402,7 +402,7 @@ const avisosPanel = avs => avs === null ? '' : `<div class="panel"><h2 style="ma
   ${avs.map(a => `<div class="kv" style="margin-top:8px"><span style="color:var(--fg)">${esc(a.titulo)}</span><button class="btn alt sm" data-avdel="${a.id}">Quitar</button></div>`).join('')}</div>`;
 /* ───────── altas, claves y copia de seguridad (solo maestro) ───────── */
 const GRADOS_TXT = { silat: ['Principiante', 'Iniciado', 'Veterano'], boxeo: ['Principiante', 'Iniciado', 'Veterano'] };
-const BK_TABLAS = { examen_alumno: 'examen_id,alumno_id', examen_tarea_alumno: 'alumno_id,tarea_id', examen_tecnica_alumno: 'alumno_id,examen_id,tecnica_id', grado_texto: 'alumno_id,programa_id', asignacion: 'alumno_id,rutina_id', recomendado: 'alumno_id,bloque_item_id', sustitucion: 'alumno_id,bloque_item_id', serie_registro: 'id', marca_hecho: 'alumno_id,bloque_item_id,fecha', progreso_tecnica: 'alumno_id,tecnica_id', validacion_tecnica: 'alumno_id,tecnica_id', grado_alumno: 'alumno_id,nivel_id', nota_tecnica: 'alumno_id,tecnica_id', entrega_regla: 'alumno_id,numero', cuota_pendiente: 'alumno_id,anio,trimestre', impreso_socio: 'alumno_id', aviso: 'id' };
+const BK_TABLAS = { examen_alumno: 'examen_id,alumno_id', examen_tarea_alumno: 'alumno_id,tarea_id', examen_tecnica_alumno: 'alumno_id,examen_id,tecnica_id', grado_texto: 'alumno_id,programa_id', asignacion: 'alumno_id,rutina_id', recomendado: 'alumno_id,bloque_item_id', sustitucion: 'alumno_id,bloque_item_id', serie_registro: 'id', marca_hecho: 'alumno_id,bloque_item_id,fecha', progreso_tecnica: 'alumno_id,tecnica_id', validacion_tecnica: 'alumno_id,tecnica_id', grado_alumno: 'alumno_id,nivel_id', nota_tecnica: 'alumno_id,tecnica_id', entrega_regla: 'alumno_id,numero', cuota_pendiente: 'alumno_id,anio,trimestre', impreso_socio: 'alumno_id', aviso: 'id', sugerencia: 'id' };
 const ALTA = { prev: [], res: [], exist: new Set() };
 const normAlias = t => String(t || '').split(/[\t;,]/)[0].split('@')[0].normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9._-]/g, '');
 const aliasOk = a => /^[a-z0-9][a-z0-9._-]{2,29}$/.test(a);
@@ -643,7 +643,21 @@ async function renderInicio() {
     : `<div class="panel" style="margin:0"><p class="muted" style="margin:0">Aún no tienes rutina asignada.</p></div>`);
   h += `<h2 style="margin:22px 0 8px">Tú en la escuela</h2><div id="escuela-card">` + escuelaCard() + `</div>`;
   h += `<h2 style="margin:22px 0 8px">Info general</h2>` + P.infos.map(i => `<button class="pcard wide" data-info="${esc(i.slug)}"><span class="tx"><b>${esc(i.titulo)}</b></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`).join('');
+  h += `<h2 style="margin:22px 0 8px">Sugerencias para la app</h2><div id="sug-card"></div>`;
   view.innerHTML = h;
+  pintaSug();
+}
+async function pintaSug(msg) {
+  const box = $('#sug-card'); if (!box) return;
+  const mae = S.perfil.rol === 'maestro';
+  let lista = [], err = false;
+  try {
+    lista = await q(sb.from('sugerencia').select('*').order('creado', { ascending: false }).limit(mae ? 100 : 5));
+    if (mae && lista.length) { const pf = await q(sb.from('perfil').select('id,alias').in('id', [...new Set(lista.map(x => x.alumno_id))])); const m = Object.fromEntries(pf.map(x => [x.id, x.alias])); lista.forEach(x => x.alias = m[x.alumno_id] || '?'); }
+  } catch (e) { err = true; }
+  const item = x => `<div class="kv" style="align-items:flex-start;gap:8px"><span style="flex:1;white-space:pre-wrap">${mae ? `<b>${esc(x.alias)}</b> · ` : ''}${esc(x.texto)}<br><small class="muted">${dateEs(x.creado.slice(0, 10))}</small></span>${mae ? `<button class="btn alt sm" style="width:auto" data-sugdel="${x.id}">Borrar</button>` : ''}</div>`;
+  box.innerHTML = (mae ? '' : `<div class="panel" style="margin:0 0 10px"><textarea id="sug-txt" maxlength="500" rows="3" placeholder="¿Qué mejorarías o echas en falta en la app?" style="width:100%"></textarea><button class="btn sm" data-sugsend style="margin-top:8px">Enviar sugerencia</button><small class="muted" style="display:block;margin-top:6px">Máx. 500 caracteres. La lee el maestro.</small></div>`)
+    + (err ? '<small class="muted">No se pudieron cargar las sugerencias.</small>' : lista.length ? `<div class="panel" style="margin:0">${mae ? '' : '<small class="muted">Tus últimas sugerencias</small>'}${lista.map(item).join('')}</div>` : mae ? '<small class="muted">Aún no hay sugerencias.</small>' : '');
 }
 async function renderInfo(slug) {
   view.innerHTML = '<div class="loading">Cargando…</div>';
@@ -930,6 +944,12 @@ document.addEventListener('click', async ev => {
       if (r.error) return toast('No se pudo cambiar. Comprueba tu conexión.');
       delete S.sust[d.unswap]; return renderExercise(d.unswap);
     }
+    if ('sugsend' in d) {
+      const t = ($('#sug-txt').value || '').trim(); if (!t) return toast('Escribe tu sugerencia primero');
+      if (await enqueue({ k: 'ins', t: 'sugerencia', conf: 'id', row: { id: uuid(), alumno_id: S.user.id, texto: t.slice(0, 500) } })) toast('Gracias, sugerencia enviada');
+      return pintaSug();
+    }
+    if (d.sugdel) { const r = await sb.from('sugerencia').delete().eq('id', d.sugdel); if (r.error) return toast('No se pudo borrar'); return pintaSug(); }
     // maestro
     if (d.regsel) { P.regSel = P.regSel === +d.regsel ? 0 : +d.regsel; $('#escuela-card').innerHTML = escuelaCard(); return; }
     if ('regclose' in d) { P.regSel = 0; $('#escuela-card').innerHTML = escuelaCard(); return; }
