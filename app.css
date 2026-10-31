@@ -191,3 +191,9 @@ details.aviso>summary:focus-visible{outline:2px solid var(--accent);outline-offs
 .vbar{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .vbar button{flex:1;min-width:64px;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--surface2);color:var(--fg);font:inherit;font-weight:600}
 .vbar button.on{outline:2px solid var(--accent)} .vbar button[data-vclose]{background:var(--accent-solid);color:var(--accent-fg);border-color:transparent}
+
+.busbox{margin:6px 0 12px}.busbox input{width:100%;box-sizing:border-box;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:inherit;font:inherit;font-size:16px}
+.busg{margin:0 0 14px}.busg h3{font-size:18px;margin:0 0 6px;display:flex;justify-content:space-between;gap:8px;align-items:baseline}.busg h3 small{font-size:13px;color:var(--muted);font-weight:400;white-space:nowrap}
+.busr{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:6px;color:inherit;font:inherit;cursor:pointer}
+.busr .cod{flex:none;min-width:28px;color:var(--muted);font-size:13px}.busr .tx{flex:1;min-width:0;font-size:15px;line-height:1.35;overflow-wrap:anywhere}.busr .tx small{display:block;color:var(--muted)}
+.tec.flash{outline:2px solid var(--accent,#e0a030);outline-offset:1px}

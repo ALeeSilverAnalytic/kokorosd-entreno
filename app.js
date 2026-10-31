@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v25';
+const VERSION = 'v26';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
@@ -627,11 +627,45 @@ function escuelaCard() {
   return cuo + imp + `<div class="panel" style="margin:0 0 10px">${gr}</div>
   <div class="panel" style="margin:0"><div class="kv"><span>Entregas de la regla</span><b>${rec} de 10 recibidas · ${ter} terminadas</b></div><div class="pills">${pills}</div>${ed}</div>`;
 }
+
+/* ───────── buscador de técnicas (en el móvil, sin conexión) ───────── */
+const planoB = t => String(t || '').replace(/\[[^\]]*\]\([^)]*\)/g, ' ').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9ñ]+/g, ' ').trim();
+const _bn = new Map();
+const busN = t => { let v = _bn.get(t.id); if (v === undefined) { v = planoB((t.codigo || '') + ' ' + t.titulo + ' ' + (t.seccion || '')); _bn.set(t.id, v); } return v; };
+const busBox = (sc, ph) => `<div class="busbox"><input type="search" data-bus="${sc}" placeholder="${ph}" autocomplete="off" enterkeyhint="search" aria-label="${ph}"></div><div id="bus-res" hidden></div>`;
+function busRes(sc, qs) {
+  const tk = planoB(qs).split(' ').filter(Boolean); if (!tk.length) return '';
+  const [k, id] = sc.split(':');
+  const nivs = Object.fromEntries(P.nivs.map(n => [n.id, n])), progs = Object.fromEntries(P.progs.map(x => [x.id, x]));
+  let L = P.tecs.filter(t => { const n = nivs[t.nivel_id]; if (!n) return false; if (k === 'n' && t.nivel_id !== id) return false; if (k === 'p' && n.programa_id !== id) return false; const b = busN(t); return tk.every(w => b.includes(w)); });
+  if (!L.length) return '<p class="muted" style="margin:10px 0">No hay técnicas con ese nombre.</p>';
+  const tot = L.length; L = L.slice(0, 80);
+  const row = t => {
+    const n = nivs[t.nivel_id], v = P.val[t.id], e = EST[P.mio[t.id]];
+    const lug = [k === 'g' ? (progs[n.programa_id] || {}).nombre : '', k !== 'n' ? n.nombre : '', t.seccion].filter(Boolean).join(' · ');
+    return `<button class="busr" data-bgo="${t.id}"><span class="cod">${esc(t.codigo || '·')}</span><span class="tx"><b>${esc(lug)}</b>${k === 'n' ? `<small>${rich(t.titulo)}</small>` : ''}</span>${v ? '<span class="chip ok">Validada</span>' : e ? `<span class="chip ${e[1]}">${e[0]}</span>` : ''}</button>`;
+  };
+  let h = `<p class="muted" style="margin:10px 0 6px">${tot} resultado${tot === 1 ? '' : 's'}${tot > 80 ? ' (se muestran 80, afina la búsqueda)' : ''}. Toca uno para ir a esa técnica.</p>`;
+  if (k === 'n') return h + L.map(row).join('');
+  const gr = new Map(); L.forEach(t => { const g = planoB(t.titulo); if (!gr.has(g)) gr.set(g, []); gr.get(g).push(t); });
+  gr.forEach(l => { h += `<div class="busg"><h3>${rich(l[0].titulo)}${l.length > 1 ? `<small>${l.length} sitios</small>` : ''}</h3>${l.map(row).join('')}</div>`; });
+  return h;
+}
+function busIr(tid) {
+  const t = P.tecs.find(x => x.id === tid); if (!t) return;
+  renderNivel(t.nivel_id);
+  const el = view.querySelector(`[data-tec="${tid}"]`); if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2200); }
+}
+document.addEventListener('input', ev => {
+  const i = ev.target.closest && ev.target.closest('[data-bus]'); if (!i) return;
+  const res = $('#bus-res'), rest = $('#bus-rest'), v = i.value.trim();
+  res.innerHTML = v ? busRes(i.dataset.bus, v) : ''; res.hidden = !v; if (rest) rest.hidden = !!v;
+});
 async function renderInicio() {
   view.innerHTML = '<h1>Hola, ' + esc(S.perfil.alias) + '</h1><div class="loading">Cargando…</div>';
   try { await cargarProgramas(); } catch (e) { view.innerHTML = '<h1>Hola, ' + esc(S.perfil.alias) + '</h1><div class="panel"><p class="muted" style="margin:0">No se pudo cargar. Comprueba tu conexión.</p></div>'; return; }
   const rut = S.rutinas.find(r => r.id === S.sel.r) || S.rutinas[0], bl = rut ? bloquesDe(rut.id) : [], dia = bl.find(b => b.id === S.sel.b) || bl[0];
-  let h = `<h1>Hola, ${esc(S.perfil.alias)}</h1>`;
+  let h = `<h1>Hola, ${esc(S.perfil.alias)}</h1>` + busBox('g', 'Buscar técnica en todos los cintos…') + '<div id="bus-rest">';
   if (P.avisos.length) h += `<h2 style="margin:18px 0 8px">Avisos</h2>` + P.avisos.map(a => `<details class="panel aviso" style="margin:0 0 8px"><summary><b>${esc(a.titulo)}</b><small class="muted">${dateEs(a.creado.slice(0, 10))}</small></summary>${a.texto ? `<p style="margin:8px 0 0">${esc(a.texto)}</p>` : ''}</details>`).join('');
   h += `<h2 style="margin:22px 0 8px">Programas técnicos</h2><div class="pgrid">` + P.progs.map(p => {
     const ns = P.nivs.filter(n => n.programa_id === p.id), all = ns.flatMap(n => tecsDe(n.id)), g = P.grados[p.id];
@@ -643,7 +677,7 @@ async function renderInicio() {
     : `<div class="panel" style="margin:0"><p class="muted" style="margin:0">Aún no tienes rutina asignada.</p></div>`);
   h += `<h2 style="margin:22px 0 8px">Tú en la escuela</h2><div id="escuela-card">` + escuelaCard() + `</div>`;
   h += `<h2 style="margin:22px 0 8px">Info general</h2>` + P.infos.map(i => `<button class="pcard wide" data-info="${esc(i.slug)}"><span class="tx"><b>${esc(i.titulo)}</b></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`).join('');
-  h += `<h2 style="margin:22px 0 8px">Sugerencias para la app</h2><div id="sug-card"></div>`;
+  h += `<h2 style="margin:22px 0 8px">Sugerencias para la app</h2><div id="sug-card"></div></div>`;
   view.innerHTML = h;
   pintaSug();
 }
@@ -734,18 +768,18 @@ async function exHecha(eid, tid) {
 function renderPrograma(pid) {
   const p = P.progs.find(x => x.id === pid); if (!p) return go('inicio');
   const ns = P.nivs.filter(n => n.programa_id === pid), g = P.grados[pid];
-  let h = `<button class="back" data-tab="inicio">${IC.chev}Inicio</button><h1>${esc(p.nombre)}</h1><p class="muted" style="margin:4px 0 14px">${g || P.gtxt[pid] ? 'Tu grado: ' + esc(g ? g.nombre : P.gtxt[pid]) : 'Aún sin grado asignado'}</p>`;
+  let h = `<button class="back" data-tab="inicio">${IC.chev}Inicio</button><h1>${esc(p.nombre)}</h1><p class="muted" style="margin:4px 0 14px">${g || P.gtxt[pid] ? 'Tu grado: ' + esc(g ? g.nombre : P.gtxt[pid]) : 'Aún sin grado asignado'}</p>` + busBox('p:' + pid, 'Buscar técnica en ' + p.nombre + '…') + '<div id="bus-rest">';
   h += ns.map(n => {
     const l = tecsDe(n.id), t = (n.detalle || {}).tiempo_minimo_antes_examen || {};
     return `<button class="pcard wide" data-niv="${n.id}"><span class="tx"><b>${esc(n.nombre)}${g && g.id === n.id ? '<span class="badge">Tu grado</span>' : ''}</b><small>${nDom(l)} de ${l.length} técnicas${t.meses_adultos ? ` · mínimo ${t.meses_adultos} meses (adultos)` : ''}</small><span class="prog" style="margin:8px 0 0"><i style="width:${l.length ? nDom(l) / l.length * 100 : 0}%"></i></span></span>${IC.chev.replace('M15 18l-6-6 6-6', 'M9 18l6-6-6-6')}</button>`;
-  }).join('');
+  }).join('') + '</div>';
   view.innerHTML = h; view.scrollTop = 0;
 }
 const EST = { practicando: ['Practicando', 'pr'], dominada: ['Dominada', 'dom'] };
 function renderNivel(nid) {
   const n = P.nivs.find(x => x.id === nid); if (!n) return go('inicio');
   const l = tecsDe(nid);
-  let h = `<button class="back" data-prog="${n.programa_id}">${IC.chev}${esc((P.progs.find(p => p.id === n.programa_id) || {}).nombre || 'Programa')}</button><h1>${esc(n.nombre)}</h1><p class="muted" style="margin:4px 0 8px">${nDom(l)} de ${l.length} técnicas. Toca una técnica para cambiar su estado: sin marcar, practicando, dominada.</p>`;
+  let h = `<button class="back" data-prog="${n.programa_id}">${IC.chev}${esc((P.progs.find(p => p.id === n.programa_id) || {}).nombre || 'Programa')}</button><h1>${esc(n.nombre)}</h1><p class="muted" style="margin:4px 0 8px">${nDom(l)} de ${l.length} técnicas. Toca una técnica para cambiar su estado: sin marcar, practicando, dominada.</p>` + busBox('n:' + nid, 'Buscar técnica en ' + n.nombre + '…') + '<div id="bus-rest">';
   const dt = n.detalle || {};
   if (dt.virtud) h += `<div class="panel nivdet"><b>Virtud: ${esc(dt.virtud)}</b>${[['Trabajo base', dt.trabajo_base], ['Actitudes', dt.actitudes], ['Pensamientos correctos', dt.pensamientos], ['Hitos', dt.hitos], ['Defectos', dt.defectos]].filter(x => x[1]).map(x => `<div><span>${x[0]}:</span> ${esc(x[1])}</div>`).join('')}${dt.intro ? `<p class="muted">${esc(dt.intro)}</p>` : ''}</div>`;
 const matChips = k => ((dt.material || {})[k] || []).map(m => `<a class="vl" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">${esc(m.titulo)}</a>`).join('');
@@ -763,7 +797,7 @@ const matChips = k => ((dt.material || {})[k] || []).map(m => `<a class="vl" hre
     });
   });
   if (sec !== null) h += '</section>';
-  view.innerHTML = h;
+  view.innerHTML = h + '</div>';
 }
 async function ciclarTecnica(id) {
   const orden = [undefined, 'practicando', 'dominada'], cur = P.mio[id], nx = orden[(orden.indexOf(cur) + 1) % 3];
@@ -995,6 +1029,7 @@ document.addEventListener('click', async ev => {
     if (d.exnb) { const bx = document.getElementById('exnb-' + d.exnb); bx.hidden = !bx.hidden; b.setAttribute('aria-expanded', !bx.hidden); if (!bx.hidden) bx.querySelector('textarea').focus(); return; }
     if (d.extarea) return renderExamenTarea(d.ex, d.extarea);
     if (d.exam) return renderExamen(d.exam);
+    if (d.bgo) return busIr(d.bgo);
     if (d.prog) return renderPrograma(d.prog);
     if (d.niv) return renderNivel(d.niv);
     if (d.tec) return ciclarTecnica(d.tec);
