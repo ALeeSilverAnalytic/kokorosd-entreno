@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v28';
+const VERSION = 'v29';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
@@ -640,15 +640,17 @@ function busRes(sc, qs) {
   let L = P.tecs.filter(t => { const n = nivs[t.nivel_id]; if (!n) return false; if (k === 'n' && t.nivel_id !== id) return false; if (k === 'p' && n.programa_id !== id) return false; const b = busN(t); return tk.every(w => b.includes(w)); });
   if (!L.length) return '<p class="muted" style="margin:10px 0">No hay técnicas con ese nombre.</p>';
   const tot = L.length; L = L.slice(0, 80);
+  const CLIPS = /\s*\[Clip[^\]]*\]\(https:\/\/drive\.google\.com\/[^)\s]+\)/g;
+  const sinClip = t => String(t || '').replace(CLIPS, '').trim(), soloClip = t => (String(t || '').match(CLIPS) || []).join(' ').trim();
   const row = t => {
     const n = nivs[t.nivel_id], v = P.val[t.id], e = EST[P.mio[t.id]];
     const lug = [k === 'g' ? (progs[n.programa_id] || {}).nombre : '', k !== 'n' ? n.nombre : '', t.seccion].filter(Boolean).join(' · ');
-    return `<button class="busr" data-bgo="${t.id}"><span class="cod">${esc(t.codigo || '·')}</span><span class="tx"><b>${esc(lug)}</b>${k === 'n' ? `<small>${rich(t.titulo)}</small>` : ''}</span>${v ? '<span class="chip ok">Validada</span>' : e ? `<span class="chip ${e[1]}">${e[0]}</span>` : ''}</button>`;
+    return `<div class="busr" role="button" tabindex="0" data-bgo="${t.id}"><span class="cod">${esc(t.codigo || '·')}</span><span class="tx"><b>${esc(lug)}</b>${k === 'n' ? `<small>${esc(sinClip(t.titulo).replace(/\[([^\]]+)\]\([^)]*\)/g, '$1'))}</small>` : ''}${soloClip(t.titulo) ? `<span class="clips">${rich(soloClip(t.titulo))}</span>` : ''}</span>${v ? '<span class="chip ok">Validada</span>' : e ? `<span class="chip ${e[1]}">${e[0]}</span>` : ''}</div>`;
   };
   let h = `<p class="muted" style="margin:10px 0 6px">${tot} resultado${tot === 1 ? '' : 's'}${tot > 80 ? ' (se muestran 80, afina la búsqueda)' : ''}. Toca uno para ir a esa técnica.</p>`;
   if (k === 'n') return h + L.map(row).join('');
   const gr = new Map(); L.forEach(t => { const g = planoB(t.titulo); if (!gr.has(g)) gr.set(g, []); gr.get(g).push(t); });
-  gr.forEach(l => { h += `<div class="busg"><h3>${rich(l[0].titulo)}${l.length > 1 ? `<small>${l.length} sitios</small>` : ''}</h3>${l.map(row).join('')}</div>`; });
+  gr.forEach(l => { h += `<div class="busg"><h3>${esc(sinClip(l[0].titulo).replace(/\[([^\]]+)\]\([^)]*\)/g, '$1'))}${l.length > 1 ? `<small>${l.length} sitios</small>` : ''}</h3>${l.map(row).join('')}</div>`; });
   return h;
 }
 function busIr(tid) {
@@ -930,7 +932,7 @@ document.addEventListener('click', async ev => {
   const ca = ev.target.closest('a[data-clip]'); if (ca) { ev.preventDefault(); return abreClip(ca.dataset.clip, ca.textContent); }
   if (ev.target.id === 'vmodal') return cierraClip();
   if (ev.target.closest('a')) return;
-  const b = ev.target.closest('button, [data-tec], [data-extec]'); if (!b) return;
+  const b = ev.target.closest('button, [data-tec], [data-extec], [data-bgo]'); if (!b) return;
   const d = b.dataset;
   try {
     if (d.vrate) { const v = document.querySelector('#vmodal video'); if (v) v.playbackRate = +d.vrate; document.querySelectorAll('[data-vrate]').forEach(x => x.classList.toggle('on', x === b)); return; }

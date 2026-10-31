@@ -197,3 +197,4 @@ details.aviso>summary:focus-visible{outline:2px solid var(--accent);outline-offs
 .busr{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:6px;color:inherit;font:inherit;cursor:pointer}
 .busr .cod{flex:none;min-width:28px;color:var(--muted);font-size:13px}.busr .tx{flex:1;min-width:0;font-size:15px;line-height:1.35;overflow-wrap:anywhere}.busr .tx small{display:block;color:var(--muted)}
 .tec.flash{outline:2px solid var(--accent,#e0a030);outline-offset:1px}
+.busr .clips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
