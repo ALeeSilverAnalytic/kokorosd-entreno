@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v27';
+const VERSION = 'v28';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
@@ -407,7 +407,7 @@ const ALTA = { prev: [], res: [], exist: new Set() };
 const normAlias = t => String(t || '').split(/[\t;,]/)[0].split('@')[0].normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9._-]/g, '');
 const aliasOk = a => /^[a-z0-9][a-z0-9._-]{2,29}$/.test(a);
 const urlApp = () => location.origin + location.pathname;
-const msgAlta = (alias, clave) => `Hola, ya tienes tu cuenta en la app de la escuela.\nEntra en: ${urlApp()}\nAlias: ${alias}\nClave temporal: ${clave}\nAl entrar te pedirá elegir una clave tuya. Guárdala bien.`;
+const msgAlta = (alias, clave) => `Hola, ya tienes tu cuenta en la app de la escuela.\nEntra en: ${urlApp()}\nAlias: ${alias}\nClave temporal: ${clave}\nAl entrar te pedirá elegir una clave tuya. Guárdala bien.\n\nPara instalarla en el móvil: abre el enlace en Chrome (Android) o Safari (iPhone) y añádela a la pantalla de inicio.\n- Android: menú de los tres puntos → «Instalar aplicación» o «Añadir a pantalla de inicio».\n- iPhone: botón Compartir → «Añadir a pantalla de inicio».`;
 async function copiar(txt) {
   try { await navigator.clipboard.writeText(txt); return true; } catch (e) {
     const t = document.createElement('textarea'); t.value = txt; t.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(t); t.select();
