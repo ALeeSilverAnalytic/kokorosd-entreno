@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v33';
+const VERSION = 'v34';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
@@ -117,11 +117,12 @@ async function loadAll() {
   const uid = S.user.id, rol = S.perfil.rol;
   try {
     let rutinas;
-    if (rol === 'maestro') rutinas = await q(sb.from('rutina').select('*').eq('activa', true).order('orden'));
-    else {
-      const asg = await q(sb.from('asignacion').select('rutina_id').eq('alumno_id', uid).eq('activa', true));
-      const ids = asg.map(a => a.rutina_id);
-      rutinas = ids.length ? await q(sb.from('rutina').select('*').in('id', ids).eq('activa', true).order('orden')) : [];
+    rutinas = await q(sb.from('rutina').select('*').eq('activa', true).order('orden'));
+    if (rol !== 'maestro') {
+      // Todas las rutinas son visibles; las asignadas al alumno van primero.
+      const asg = await q(sb.from('asignacion').select('rutina_id').eq('alumno_id', uid).eq('activa', true)).catch(() => []);
+      const mias = new Set(asg.map(a => a.rutina_id));
+      rutinas = rutinas.map((r, i) => [r, i]).sort((a, b) => (mias.has(b[0].id) - mias.has(a[0].id)) || a[1] - b[1]).map(x => x[0]);
     }
     const rids = rutinas.map(r => r.id);
     const rb = rids.length ? await q(sb.from('rutina_bloque').select('*').in('rutina_id', rids).order('orden')) : [];
@@ -253,7 +254,7 @@ function go(t) {
 function renderToday() {
   const rutinas = S.rutinas;
   if (!rutinas.length) {
-    view.innerHTML = `<h1>Entreno</h1><div class="panel"><h2 style="margin-bottom:6px">Aún sin rutina</h2><p class="muted" style="margin:0">Tu maestro todavía no te ha asignado una rutina. Cuando lo haga, aparecerá aquí.</p></div>`;
+    view.innerHTML = `<h1>Entreno</h1><div class="panel"><h2 style="margin-bottom:6px">Aún sin rutina</h2><p class="muted" style="margin:0">Todavía no hay rutinas publicadas. Cuando las haya, aparecerán aquí.</p></div>`;
     return;
   }
   const rut = rutinas.find(r => r.id === S.sel.r) || rutinas[0];
