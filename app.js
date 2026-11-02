@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v31';
+const VERSION = 'v32';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
@@ -668,7 +668,7 @@ async function renderInicio() {
   try { await cargarProgramas(); } catch (e) { view.innerHTML = '<h1>Hola, ' + esc(S.perfil.alias) + '</h1><div class="panel"><p class="muted" style="margin:0">No se pudo cargar. Comprueba tu conexión.</p></div>'; return; }
   const rut = S.rutinas.find(r => r.id === S.sel.r) || S.rutinas[0], bl = rut ? bloquesDe(rut.id) : [], dia = bl.find(b => b.id === S.sel.b) || bl[0];
   let h = `<h1>Hola, ${esc(S.perfil.alias)}</h1>` + '<div data-busrest>';
-  if (P.avisos.length) h += `<h2 style="margin:18px 0 8px">Avisos</h2>` + P.avisos.map(a => `<details class="panel aviso" style="margin:0 0 8px"><summary><b>${esc(a.titulo)}</b><small class="muted">${dateEs(a.creado.slice(0, 10))}</small></summary>${a.texto ? `<p style="margin:8px 0 0">${esc(a.texto)}</p>` : ''}</details>`).join('');
+  if (P.avisos.length) h += `<h2 style="margin:18px 0 8px">Avisos</h2>` + P.avisos.map(a => `<details class="panel aviso"><summary><small class="muted">${dateEs(a.creado.slice(0, 10))}</small><b>${esc(a.titulo)}</b></summary>${a.texto ? `<p style="margin:8px 0 0">${esc(a.texto)}</p>` : ''}</details>`).join('');
   h += `</div><h2 style="margin:22px 0 8px">Programas técnicos</h2>` + busBox('g', 'Buscar técnica en todos los cintos…') + `<div data-busrest><div class="pgrid">` + P.progs.map(p => {
     const ns = P.nivs.filter(n => n.programa_id === p.id), all = ns.flatMap(n => tecsDe(n.id)), g = P.grados[p.id];
     return `<button class="pcard${ns.length ? '' : ' soon'}" ${ns.length ? `data-prog="${p.id}"` : 'disabled'}><b>${esc(p.nombre)}</b><small>${ns.length ? esc(g ? g.nombre : (GRADOS_TXT[p.slug] && P.gtxt[p.id]) || 'Sin grado asignado') : 'Próximamente'}</small>${ns.length ? `<span class="prog"><i style="width:${all.length ? nDom(all) / all.length * 100 : 0}%"></i></span><small>${nDom(all)} de ${all.length} técnicas</small>` : ''}</button>`;
