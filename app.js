@@ -5,7 +5,7 @@
 const SB_URL = 'https://ieqnpgmhdiblfbfxacol.supabase.co';
 const SB_KEY = 'sb_publishable_ZvC4adLa5PScOFl1GrfadQ_GIv620fH';
 const DOMINIO = '@kokorosd.example';
-const VERSION = 'v35';
+const VERSION = 'v36';
 const FORM_IMPRESO = 'https://forms.gle/qx2QtYunquHLNLHz9'; // enlace del Formulario de Google para subir el impreso firmado (vacío = sin botón)
 const PDF_SOCIO = 'https://drive.google.com/uc?export=download&id=1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK';
 const PDF_VER = 'https://drive.google.com/file/d/1oxZv3pTkijurfnZ24FoYqVkaXVRabOhK/view?usp=sharing';
