@@ -62,7 +62,7 @@
      "nivel_id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
      "seccion": "a) Golpes simples",
      "codigo": "a4",
-     "titulo": "Uppercut [Ver clip](clips/a4-uppercut.mp4)",
+     "titulo": "Uppercut",
      "descripcion": null,
      "orden": 4
     },
@@ -164,6 +164,15 @@
      "titulo": "Triedro: jab, uppercut, crochet izquierdo – cross, uppercut, crochet derecho",
      "descripcion": null,
      "orden": 15
+    },
+    {
+     "id": "e6a74503-8c4b-516b-a236-ec56c1cfb8ca",
+     "nivel_id": "a286f328-2fc6-5e98-bf85-d622e4e625e7",
+     "seccion": "d) Combos",
+     "codigo": "d2",
+     "titulo": "Double jab, cross, jab, cross, crochet, hook // [Ver clip](clips/d2-combo-double-jab.mp4)",
+     "descripcion": "// = misma mano o lado. Variante: double jab, cross, jab, cross, hook, crochet //",
+     "orden": 16
     }
    ]
   }
